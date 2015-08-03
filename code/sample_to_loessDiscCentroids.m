@@ -27,6 +27,10 @@ arrayLocStrings = { [ 'C' ];
                     [ 'N' ] };
 numLocalisations = length(arrayLocStrings);   
 
+numSpatialBins = 28;
+arrayNormDistRatio = [1 4 2];
+numLoessWindowSize = 0.5;
+
 
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Path Manipulations
@@ -56,11 +60,15 @@ stringDataPath = 'C:\wc\2015_epidermal_data\data';
 strProcImgDataPath = [ stringDataPath strFoldSep 'processed' strFoldSep ];
 strRawImgDataPath = [ stringDataPath strFoldSep 'image' strFoldSep ];
 
-for iTarget = 1:numTargets,
-    for iPatient = 1:numPatients,
-        numPatient = arrayPatients(iPatient);
+arrayAllDataByLoc = cell(numLocalisations, 1);
 
-        for iLoc = 1:numLocalisations,
+
+for iLoc = 1:numLocalisations,
+    arrayAllDataByLoc{iLoc} = zeros(numSpatialBins, numTargets, numPatients, 'double');
+    for iTarget = 1:numTargets,
+        for iPatient = 1:numPatients,
+            numPatient = arrayPatients(iPatient);
+
             %load the sample_loc.mat array
             stringSegImgPath = [ strProcImgDataPath arrayTargetPaths{iTarget} '\Pat_' num2str(iPatient) '\' ];
             stringSmpLocPath = [ strProcImgDataPath arrayTargetPaths{iTarget} '\Pat_' num2str(iPatient) '\' arrayLocStrings{iLoc} '\' ];
@@ -73,10 +81,21 @@ for iTarget = 1:numTargets,
 
             %produce a 'SampleAnalysis' structured array
             structSignalIntensityData = produceSmpAna(structSampleLocs, arraySamplingKernel, stringImgDataPath, stringSegImgPath);
-
-            [ arrayLoessCurve ] = calculateLoessCurve( arrayXToSmooth, arrayYToSmooth, numSpatialBins, arrayNormDistRatio, numLoessWindowSize )
             
-            a=1;
+            numSamplePoints = length(structSignalIntensityData);
+            arrayXToSmooth = zeros(numSamplePoints,1,'double');
+            arrayYToSmooth = zeros(numSamplePoints,1,'uint8');
+            for iSample = 1:numSamplePoints,
+                arrayXToSmooth(iSample) = structSignalIntensityData(iSample).NormDist;
+                arrayYToSmooth(iSample) = structSignalIntensityData(iSample).SigInt;
+            end
+            
+            arrayLoessCurve = calculateLoessCurve( arrayXToSmooth, arrayYToSmooth, numSpatialBins, arrayNormDistRatio, numLoessWindowSize );
+            
+            arrayBinCentres = interp1(arrayLoessCurve(1,:), arrayLoessCurve(2,:), 0.5:1:(numSpatialBins-0.5));
+            
+            arrayAllDataByLoc{iLoc}(:,iTarget,iPatient) = arrayBinCentres;
+            
         end
     end
 end

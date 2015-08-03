@@ -7,8 +7,10 @@ function [ arrayLoessCurve ] = calculateLoessCurve( arrayXToSmooth, arrayYToSmoo
     numLayersInTissue = size(arrayBoundaryIndices,1)-1;
     arrayLayerBounds = arrayBoundaryIndices-1;
 
+    arrayNormalisedXToSmooth = rescaleNormDist( arrayXToSmooth, numSpatialBins, arrayNormDistRatio );
+    
     %sort the data for loess smoothing
-    [arraySortedX, arraySortingPointer] = sort(arrayXToSmooth);
+    [arraySortedX, arraySortingPointer] = sort(arrayNormalisedXToSmooth);
     arrayTempYValuesSorted = arrayYToSmooth(arraySortingPointer);
     arraySmoothedY = cell(numLayersInTissue,1);
     disp('Performing loess smoothing, this may require extended processing times depending on the number of data points');
