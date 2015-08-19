@@ -56,46 +56,54 @@ strCurrDir = cd;
 addpath(genpath([strCurrDir strFoldSep 'functions']));
 
 %and the relative path of the data
-stringDataPath = 'C:\wc\2015_epidermal_data\data';
-strProcImgDataPath = [ stringDataPath strFoldSep 'processed' strFoldSep ];
-strRawImgDataPath = [ stringDataPath strFoldSep 'image' strFoldSep ];
+arrayCurrDirSeps = strfind(strCurrDir, strFoldSep);
+numDirSeps = length(arrayCurrDirSeps);
+stringMountedFolder = strCurrDir(1:arrayCurrDirSeps(numDirSeps-1));
+%confirm the relative path occurs as expected
+strProcImgDataPath = [ stringMountedFolder 'processed' strFoldSep ];
+strRawImgDataPath = [ stringMountedFolder 'images' strFoldSep ];
+if (exist(strProcImgDataPath, 'dir') == 7) && (exist(strProcImgDataPath, 'dir') == 7),
+    
+    arrayAllDataByLoc = cell(numLocalisations, 1);
 
-arrayAllDataByLoc = cell(numLocalisations, 1);
+    for iLoc = 1:numLocalisations,
+        arrayAllDataByLoc{iLoc} = zeros(numSpatialBins, numTargets, numPatients, 'double');
+        for iTarget = 1:numTargets,
+            for iPatient = 1:numPatients,
+                numPatient = arrayPatients(iPatient);
 
+                %load the sample_loc.mat array
+                stringSegImgPath = [ strProcImgDataPath arrayTargetPaths{iTarget} strFoldSep 'Pat_' num2str(iPatient) strFoldSep ];
+                stringSmpLocPath = [ strProcImgDataPath arrayTargetPaths{iTarget} strFoldSep 'Pat_' num2str(iPatient) strFoldSep arrayLocStrings{iLoc} strFoldSep ];
+                load([stringSmpLocPath 'sample_loc.mat']);
+                structSampleLocs = SampleOutput;
+                clear SampleOutput;
 
-for iLoc = 1:numLocalisations,
-    arrayAllDataByLoc{iLoc} = zeros(numSpatialBins, numTargets, numPatients, 'double');
-    for iTarget = 1:numTargets,
-        for iPatient = 1:numPatients,
-            numPatient = arrayPatients(iPatient);
+                %determine the path of the image stacks
+                stringImgDataPath = [ strRawImgDataPath arrayTargetPaths{iTarget} strFoldSep 'Pat_' num2str(iPatient) strFoldSep 'image_data' strFoldSep ];
 
-            %load the sample_loc.mat array
-            stringSegImgPath = [ strProcImgDataPath arrayTargetPaths{iTarget} '\Pat_' num2str(iPatient) '\' ];
-            stringSmpLocPath = [ strProcImgDataPath arrayTargetPaths{iTarget} '\Pat_' num2str(iPatient) '\' arrayLocStrings{iLoc} '\' ];
-            load([stringSmpLocPath 'sample_loc.mat']);
-            structSampleLocs = SampleOutput;
-            clear SampleOutput;
+                %produce a 'SampleAnalysis' structured array
+                structSignalIntensityData = produceSmpAna(structSampleLocs, arraySamplingKernel, stringImgDataPath, stringSegImgPath);
 
-            %determine the path of the image stacks
-            stringImgDataPath = [ strRawImgDataPath arrayTargetPaths{iTarget} '\Pat_' num2str(iPatient) '\image_data\' ];
+                numSamplePoints = length(structSignalIntensityData);
+                arrayXToSmooth = zeros(numSamplePoints,1,'double');
+                arrayYToSmooth = zeros(numSamplePoints,1,'uint8');
+                for iSample = 1:numSamplePoints,
+                    arrayXToSmooth(iSample) = structSignalIntensityData(iSample).NormDist;
+                    arrayYToSmooth(iSample) = structSignalIntensityData(iSample).SigInt;
+                end
 
-            %produce a 'SampleAnalysis' structured array
-            structSignalIntensityData = produceSmpAna(structSampleLocs, arraySamplingKernel, stringImgDataPath, stringSegImgPath);
-            
-            numSamplePoints = length(structSignalIntensityData);
-            arrayXToSmooth = zeros(numSamplePoints,1,'double');
-            arrayYToSmooth = zeros(numSamplePoints,1,'uint8');
-            for iSample = 1:numSamplePoints,
-                arrayXToSmooth(iSample) = structSignalIntensityData(iSample).NormDist;
-                arrayYToSmooth(iSample) = structSignalIntensityData(iSample).SigInt;
+                arrayLoessCurve = calculateLoessCurve( arrayXToSmooth, arrayYToSmooth, numSpatialBins, arrayNormDistRatio, numLoessWindowSize );
+
+                arrayBinCentres = interp1(arrayLoessCurve(1,:), arrayLoessCurve(2,:), 0.5:1:(numSpatialBins-0.5));
+
+                arrayAllDataByLoc{iLoc}(:,iTarget,iPatient) = arrayBinCentres;
+
             end
-            
-            arrayLoessCurve = calculateLoessCurve( arrayXToSmooth, arrayYToSmooth, numSpatialBins, arrayNormDistRatio, numLoessWindowSize );
-            
-            arrayBinCentres = interp1(arrayLoessCurve(1,:), arrayLoessCurve(2,:), 0.5:1:(numSpatialBins-0.5));
-            
-            arrayAllDataByLoc{iLoc}(:,iTarget,iPatient) = arrayBinCentres;
-            
         end
     end
+    
+else
+    disp('warning: data files cannot be located');
+    
 end

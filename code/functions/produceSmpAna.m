@@ -30,6 +30,20 @@ function [ structSigDataOut ] = produceSmpAna( structSampleLocs, arraySamplingKe
 %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Perform Pre-Processing
 %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+
+    %depending upon the OS, use a different folder separater (forward vs
+    % back slash)
+    if ispc,
+        strFoldSep = '\';
+    elseif isunix,
+        strFoldSep = '/';
+    else
+        disp(['warning: cannot determine the operating system, defaulting to ' ...
+                'forward slash for the folder path separator' ] );
+        strFoldSep = '/';
+    end
+
+
     %determine properties of the sampling kernel
     [ numPixelsPerSample, arrayXOffset, arrayYOffset ] = initSamplingKernel( arraySamplingKernel );
 
@@ -64,8 +78,8 @@ function [ structSigDataOut ] = produceSmpAna( structSampleLocs, arraySamplingKe
     
 
     %for error output, determine the target protein
-    arraySegImgPathBackSlash = strfind(stringSegImgPath, '\');
-    stringTarget = stringSegImgPath((arraySegImgPathBackSlash(end-2)+1):(arraySegImgPathBackSlash(end-1)-1));
+    arraySegImgPathSeps = strfind(stringSegImgPath, strFoldSep);
+    stringTarget = stringSegImgPath((arraySegImgPathSeps(end-2)+1):(arraySegImgPathSeps(end-1)-1));
 
 %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Populate the Output Arrays

@@ -39,18 +39,38 @@ function [ arrayOutCellImageStack, arrayOutCellImageLayers, arrayOutCellImageBas
     numChannel = uint16(str2double(stringChannel));
     
     %load the filenames into an array for searching        
-    arrayFileNamesImageFolder = ls(stringInImageDirectory);
-    numFilesinImageFolder = size(arrayFileNamesImageFolder,1);
-    numImagesInStack = 0;
-    for iFile = 1:numFilesinImageFolder,
-        %search against the stack name up to the z-value as a stack-identifier
-        if strfind(arrayFileNamesImageFolder(iFile,:), stringStackName(1:indexZSliceLoc+2));
-            if strfind(arrayFileNamesImageFolder(iFile,:), ['ch0' num2str(numChannel)]),
-                numImagesInStack = numImagesInStack + 1;
+%     arrayFileNamesImageFolder = ls(stringInImageDirectory);
+%     if ispc,
+%         %on Windows, ls produces a cell array
+%         numFilesinImageFolder = size(arrayFileNamesImageFolder,1);
+%         
+%         numImagesInStack = 0;
+%         for iFile = 1:numFilesinImageFolder,
+%             %search against the stack name up to the z-value as a stack-identifier
+%             if strfind(arrayFileNamesImageFolder(iFile,:), stringStackName(1:indexZSliceLoc+2));
+%                 if strfind(arrayFileNamesImageFolder(iFile,:), ['ch0' num2str(numChannel)]),
+%                     numImagesInStack = numImagesInStack + 1;
+%                 end
+%             end
+% 
+%         end
+% 
+%     elseif isunix,
+%         %on *nix, ls produces a cell array
+%         
+        numFilesinImageFolder = length(arrayDirContents);
+        numImagesInStack = 0;
+        for iFile = 1:numFilesinImageFolder,
+            %search against the stack name up to the z-value as a stack-identifier
+            if strfind(arrayDirContents(iFile).name, stringStackName(1:indexZSliceLoc+2));
+                if strfind(arrayDirContents(iFile).name, ['ch0' num2str(numChannel)]),
+                    numImagesInStack = numImagesInStack + 1;
+                end
             end
+
         end
         
-    end
+%     end
     
     %load the image stack
     arrayImageStack = loadImageStack( stringInImageDirectory, stringStackName, numImagesInStack, numChannel );
