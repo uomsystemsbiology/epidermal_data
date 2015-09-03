@@ -9,7 +9,7 @@
 %  dependencies upon MATLAB Toolboxes:
 %   - Image Processing Toolbox: this script directly calls the bwlabel, 
 %                                   regionprops, and bwmorph functions
-%                               the calculateCellDistances function also
+%                               the calculateDistancesToBoundary function also
 %                                   calls bwlabel and regionprops
 %   - Neural Network Toolbox: dist is called directly by this script
 %   - Statistics and Machine Learning Toolbox: this script directly calls
@@ -202,8 +202,8 @@ for iObj = 1:numOutputObjects,
         imageBasalLamina = imread([ stringProcessedDataPath 'im_basal_memb_z5.tiff' ]);
         imageBoundOne = imread([ stringProcessedDataPath 'im_bound1_z5.tiff' ]);
         %calculate the cellular distances
-        numBasalLaminaDistance = calculateCellDistances(imageBasalLamina, structNucProps(iObj).Centroid');
-        numBoundaryOneDistance = calculateCellDistances(imageBoundOne, structNucProps(iObj).Centroid');
+        numBasalLaminaDistance = calculateDistancesToBoundary(imageBasalLamina, structNucProps(iObj).Centroid');
+        numBoundaryOneDistance = calculateDistancesToBoundary(imageBoundOne, structNucProps(iObj).Centroid');
         %add the appropriate offset and perform linear interpolation
         arrayNormDist(iObj) = 0 + (  numBasalLaminaDistance/(numBasalLaminaDistance + numBoundaryOneDistance)  );
 
@@ -213,8 +213,8 @@ for iObj = 1:numOutputObjects,
         imageBoundOne = imread([ stringProcessedDataPath 'im_bound1_z5.tiff' ]);
         imageBoundTwo = imread([ stringProcessedDataPath 'im_bound2_z5.tiff' ]);
         %calculate the cellular distances
-        numBoundaryOneDistance = calculateCellDistances(imageBoundOne, structNucProps(iObj).Centroid');
-        numBoundaryTwoDistance = calculateCellDistances(imageBoundTwo, structNucProps(iObj).Centroid');
+        numBoundaryOneDistance = calculateDistancesToBoundary(imageBoundOne, structNucProps(iObj).Centroid');
+        numBoundaryTwoDistance = calculateDistancesToBoundary(imageBoundTwo, structNucProps(iObj).Centroid');
         %add the appropriate offset and perform linear interpolation
         arrayNormDist(iObj) = 1 + (  numBoundaryOneDistance/(numBoundaryOneDistance + numBoundaryTwoDistance)  );
 
@@ -224,8 +224,8 @@ for iObj = 1:numOutputObjects,
         imageBoundTwo = imread([ stringProcessedDataPath 'im_bound2_z5.tiff' ]);
         imageOuterBound = imread([ stringProcessedDataPath 'im_outer_bound_z5.tiff' ]);
         %calculate the cellular distances
-        numBoundaryTwoDistance = calculateCellDistances(imageBoundTwo, structNucProps(iObj).Centroid');
-        numOuterBoundaryDistance = calculateCellDistances(imageOuterBound, structNucProps(iObj).Centroid');
+        numBoundaryTwoDistance = calculateDistancesToBoundary(imageBoundTwo, structNucProps(iObj).Centroid');
+        numOuterBoundaryDistance = calculateDistancesToBoundary(imageOuterBound, structNucProps(iObj).Centroid');
         %add the appropriate offset and perform linear interpolation
         arrayNormDist(iObj) = 2 + (  numBoundaryTwoDistance/(numBoundaryTwoDistance + numOuterBoundaryDistance)  );
 

@@ -1,44 +1,75 @@
-function [ arrayMinEuclidDist ] = calculateDistancesToBoundary( imEdge, arrayPixelCoOrds )
-%calculateDistancesToBoundary :: calculate the minimum distance for an
-%array of pixel co-ordinates, to a continuous boundary
-%   
-%   This script moves takes an array of co-ordinates for specified pixels
-%(can be a single value, but it is much quicker to submit a large array
-%with multiple pixel co-ordinates than to loop and submit the co-ordinates 
-%of individual pixels for calculation), and a binarised image containing a
-%boundary, and calculates the shortest distance to the boundary for each
-%specified pixel co-ordinate.
-% Inputs:
-%   - imEdge: a binarised image containing a boundary (e.g. a tissue layer
-%           boundary)
-%   - arrayPixelCoOrds: a 2xN array of pixel co-ordinates (x in row 1, y in
-%           row 2) to determine the minimum distance
-% Outputs:
-%   - arrayMinEuclidDist: the minimum Euclidian distance (in pixels) from
-%           each specified pixel to the specified boundary
+function [ arrayEuclidianDist ] = calculateDistancesToBoundary( imageEdge, arrayPixelCoOrds )
+%% arrayEuclidianDist = calculateCellDistances(imageEdge, arrayPixelCoOrds)
+% This function calculates the minimum distance for an array of pixel 
+%   co-ordinates, to a continuous boundary.
+%
+%  Inputs:
+%       imageEdge: a binarised image file containing the tissue-layer 
+%                   boundary, from which the distance of specified x,y
+%                   co-ordinates are to be calculated
+%       arrayPixelCoOrds: a row/column vector containing x,y co-ordinates
+%                   of the positions for distance calculation
+%  Output:
+%       arrayEuclidianDist: an array (double precision) containing the
+%           Euclidian distance between the specified centroid (x,y) 
+%           positionsand their nearest pixel on the input imageEdge
+%  Dependencies on MATLAB Toolboxes:
+%       Image Processing Toolbox - this function calls upon the bwlabel and
+%                                   regionprops functions
+%
+% This MATLAB function has been released for the GigaScience Data Note:
+%   Cursons et al. (2015). Spatially-transformed fluorescence image data 
+%    for ERK-MAPK and selected proteins within human epidermis.
+%    GigaScience. Submitted Sept 2015.
+%    doi: not-yet-known
+%
+% This function was created by Joe Cursons:
+%   joseph.cursons@unimelb.edu.au
+%
+% Last Updated: 03/09/15
+%
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+%% Check Input Format
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+    %if the binarised imageEdge has been created within image processing
+    % software it may actually be a '3D' (RGB) .TIFF file; if so, convert
+    % to a one-dimensional binarised array
+    if size(imageEdge,3) > 1,
+        imageEdgeBin = bwlabel( imageEdge(:,:,1) );
+    else
+        imageEdgeBin = bwlabel( imageEdge );
+    end
+    
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+%% Perform Pre-Processing
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+    %use the regionprops function to extract pixel co-ordinates from the
+    % binarised edge file
+    structEdgeProps = regionprops( imageEdgeBin, 'PixelList' );
+    arrayEdgePixelCoOrds = [ structEdgeProps(1).PixelList' ];
+    numPixelEdgeCoOrds = size( arrayEdgePixelCoOrds, 2 );
+    
+    %transpose the PixelList - the regionprops function extracts a column
+    % vector, the dist function requires a row vector
+    if (size(arrayPixelCoOrds,2) == 2) && (size(arrayPixelCoOrds,1) > 1),
+        arrayPixelCoOrds = arrayPixelCoOrds';
+    end
 
-    %ensure the boundary edge is binarised
-    arrayEdgeLabelled = logical( imEdge );
-    %and use the regionprops function to extract the pixel co-ordinates of
-    % the boundary
-    arrayEdgeProps = regionprops( arrayEdgeLabelled, 'PixelList' );
+    %append the centroid co-ordinates to the end of the edge co-ordinates
+    arrayEdgePixelCoOrds = [ arrayEdgePixelCoOrds, arrayPixelCoOrds ];
+    numTotalPix = size( arrayEdgePixelCoOrds, 2 );
+    
+    %use the dist function to calculate the distance between all pixels
+    % within the resulting array
+    arrayEdgeDistances = dist( double(arrayEdgePixelCoOrds) );
 
-    %transpose the PixelList as regionprops function extracts a column
-    % vector with each pixel corresponding to a row; while the dist 
-    % function requires each pixel to correspond to a row
-    arrayEdgePixCoOrds = arrayEdgeProps(1).PixelList';
-    numEdgePix = size( arrayEdgePixCoOrds, 2 );
-
-    %concatenate the imEdge pixel list with the specified pixel
-    % co-ordinates
-    arrayEdgePixCoOrds = [ arrayEdgePixCoOrds, arrayPixelCoOrds ];
-    numTotalPix = size( arrayEdgePixCoOrds, 2 );
-    %and call the intrinsic MATLAB 'dist' function
-    arrayEdgeDist = dist( double(arrayEdgePixCoOrds) );
-
-    %identify the minimum distance for the specified pixel co-ordinates (in
-    % columns numEdgePix+1:numTotalPix)
-    arrayMinEuclidDist = min(arrayEdgeDist(1:numEdgePix, numEdgePix+1:numTotalPix));
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+%% Output in the Specified Format
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+ 
+    %identify the shortest distance between the edge pixels and the
+    % specified objects
+    arrayEuclidianDist = min(arrayEdgeDistances(1:numPixelEdgeCoOrds, numPixelEdgeCoOrds+1:numTotalPix));
 
 end
 
