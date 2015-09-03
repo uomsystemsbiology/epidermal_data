@@ -1,4 +1,7 @@
- %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+%% sample_to_loessDiscCentroids.m
+% This MATLAB script takes
+
+%  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Input Parameters
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %define the local neighbourhood of pixels to sample the signal intensity 
