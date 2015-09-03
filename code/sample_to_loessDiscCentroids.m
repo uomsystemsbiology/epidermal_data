@@ -1,6 +1,29 @@
 %% sample_to_loessDiscCentroids.m
-% This MATLAB script takes
-
+% This MATLAB script reads in the sample location data, extracts pixel
+%  intensities from the raw image data, maps to the normalised distance
+%  co-ordinate, performs loess smoothing, and outputs .csv/.tiff at various
+%  stages.
+%
+% A number of functions are used by this script, some of which have
+%  dependencies upon MATLAB Toolboxes:
+%   - Image Processing Toolbox: this script directly calls the bwlabel, 
+%                                   regionprops, and bwmorph functions
+%                               the calculateDistancesToBoundary function also
+%                                   calls bwlabel and regionprops
+%   - Neural Network Toolbox: dist is called directly by this script
+%   - Statistics and Machine Learning Toolbox: this script directly calls
+%                                   the ksdensity function
+%
+% This script was created by Joe Cursons at the University of Melbourne
+%   Systems Biology Laboratory:
+%       joseph.cursons@unimelb.edu.au
+%
+% Last Updated: 03/09/15
+%
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+%% Input Parameters
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+ 
 %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Input Parameters
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
@@ -64,7 +87,7 @@ numDirSeps = length(arrayCurrDirSeps);
 stringMountedFolder = strCurrDir(1:arrayCurrDirSeps(numDirSeps-1));
 %confirm the relative path occurs as expected
 strProcImgDataPath = [ stringMountedFolder 'processed' strFoldSep ];
-strRawImgDataPath = [ stringMountedFolder 'images' strFoldSep ];
+strRawImgDataPath = [ stringMountedFolder 'image' strFoldSep ];
 if (exist(strProcImgDataPath, 'dir') == 7) && (exist(strProcImgDataPath, 'dir') == 7),
     
     arrayAllDataByLoc = cell(numLocalisations, 1);

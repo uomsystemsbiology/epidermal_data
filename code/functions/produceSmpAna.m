@@ -1,23 +1,25 @@
 function [ structSigDataOut ] = produceSmpAna( structSampleLocs, arraySamplingKernel, stringImgDataPath, stringSegImgPath )
-%produceSmpAna :: 
+%% structSigDataOut = produceSmpAna( structSampleLocs, arraySamplingKernel, stringImgDataPath, stringSegImgPath )
+% This function which takes a structured array of sample
+%  locations, a specified sampling kernel (for selecting pixels around the
+%  region of interest) and the folder paths for image and segmentation 
+%  data, and produces a structured array containing signal intensity and 
+%  pixel location data for subsequent analysis
 %
-%   This function which takes a structured array of sample
-%locations, a specified sampling kernel (for selecting pixels around the
-%region of interest) and the folder paths for image and segmentation data,
-%and produces a structured array containing signal intensity and pixel
-%location data for subsequent analysis
-%
-% Inputs:
+%  Inputs:
 %   - structSampleLocs: a structured array containing 3D pixel co-ordinates
 %           (x, y, z) within a 'SmpCent' Nx3 array with N sample locations
 %   - arraySamplingKernel: an binarised array showing pixels to extract the
 %           signal intensity data around the central pixel, for each sample
 %           location
+%           NB: that around line 91 a call to the unique function is made
+%            to ensure that there are no over-lapping pixels being sampled
+%            after applying the sampling kernel at the specified locations
 %   - stringImgDataPath: the folder path for the image data stack
 %   - stringSegImgPath: the folder path for the tissue segmentation and 
 %           sample location data
 %
-% Outputs:
+%  Output:
 %   - structSigDataOut: a structured array containing:
 %   	- CoOrds: a vector with the x, y and z co-ordinates of the sampled
 %       	pixel
@@ -26,7 +28,28 @@ function [ structSigDataOut ] = produceSmpAna( structSampleLocs, arraySamplingKe
 %   	- NormDist: layer-normalized distance (linear interpolation within 
 %       	each tissue layer)
 %   	- SigInt: the signal intensity (uint8) associated with the pixel
-
+%
+%  MATLAB Toolbox Dependencies:
+%   - none (?)
+%                                    
+%
+% This MATLAB function has been released for the GigaScience Data Note:
+%   Cursons et al. (2015). Spatially-transformed fluorescence image data 
+%    for ERK-MAPK and selected proteins within human epidermis.
+%    GigaScience. Submitted Sept 2015.
+%   doi: not-yet-known
+% 
+% A more detailed description of the normalised distance co-ordinate can be
+%  found in:
+%   Cursons et al. (2015). Regulation of ERK-MAPK signaling in human 
+%    epidermis. BMC Systems Biology. 
+%   doi: 10.1186/s12918-015-0187-6
+%
+% This function was created by Joe Cursons:
+%   joseph.cursons@unimelb.edu.au
+%
+% Last Updated: 03/09/15
+%
 %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Perform Pre-Processing
 %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
@@ -42,7 +65,6 @@ function [ structSigDataOut ] = produceSmpAna( structSampleLocs, arraySamplingKe
                 'forward slash for the folder path separator' ] );
         strFoldSep = '/';
     end
-
 
     %determine properties of the sampling kernel
     [ numPixelsPerSample, arrayXOffset, arrayYOffset ] = initSamplingKernel( arraySamplingKernel );

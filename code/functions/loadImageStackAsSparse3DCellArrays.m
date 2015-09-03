@@ -2,22 +2,68 @@ function [ arrayOutCellImageStack, arrayOutCellImageLayers, arrayOutCellImageBas
     arrayOutCellImageBoundaryOne, arrayOutCellImageBoundaryTwo, ...
     arrayInCellImageOuterBoundary ] = loadImageStackAsSparse3DCellArrays( arrayInZSlices, ...
     stringInImageDirectory, stringInIndexImageFolder )
-%load_3D_cell_arrays :: take the array of Z slices, and appropriate folder
-%paths, and load the required cell arrays (empty on the Z-slices not
-%required to save memory)
+%% [ arrayOutCellImageStack, arrayOutCellImageLayers, arrayOutCellImageBasalLamina, ...
+%    arrayOutCellImageBoundaryOne, arrayOutCellImageBoundaryTwo, ...
+%    arrayInCellImageOuterBoundary ] 
+%       = loadImageStackAsSparse3DCellArrays( arrayInZSlices, ...
+%               stringInImageDirectory, stringInIndexImageFolder )
+% This function is given folders containing image data and processed data,
+%  and an array of desired z-positions, and the specified location is
+%  extracted into sparse (non-sampled z-positions are empty) cell array.
 %
-%Input:
-%Output:
-
-    % ======================= User Defined Settings =======================
-    
-    
-    % ===================== Array/Variable Management =====================
-    %variables based upon the input arrays
+%  Inputs:
+%   - arrayInZSlices:
+%   - stringInImageDirectory: full system path for the image stack, 
+%           including the final path separator
+%   - stringInIndexImageFolder: full system path for the segmentation data, 
+%           including the final path separator
+%
+%  Output:
+%   - arrayOutCellImageStack: a cell array containing the image data at
+%           specified z-positions
+%   - arrayOutCellImageLayers: a cell array containing the 
+%           im_layers_z<#>.tif segmentation data  at specified z-positions
+%   - arrayOutCellImageBasalLamina: a cell array containing the  
+%           im_basal_z<#>.tiff segmentation data at specified z-positions
+%   - arrayOutCellImageBoundaryOne: a cell array containing the  
+%           im_bound1_z<#>.tiff segmentation data at specified z-positions
+%   - arrayOutCellImageBoundaryTwo: a cell array containing the  
+%           im_bound2_z<#>.tiff segmentation data at specified z-positions
+%   - arrayInCellImageOuterBoundary:  a cell array containing the  
+%           im_outer_bound_z<#>.tiff segmentation data at specified
+%           z-positions
+%
+%  MATLAB Toolbox Dependencies:
+%   - none                      
+%
+% This MATLAB function has been released for the GigaScience Data Note:
+%   Cursons et al. (2015). Spatially-transformed fluorescence image data 
+%    for ERK-MAPK and selected proteins within human epidermis.
+%    GigaScience. Submitted Sept 2015.
+%   doi: not-yet-known
+% 
+% A more detailed description of the normalised distance co-ordinate can be
+%  found in:
+%   Cursons et al. (2015). Regulation of ERK-MAPK signaling in human 
+%    epidermis. BMC Systems Biology. 
+%   doi: 10.1186/s12918-015-0187-6
+%
+% This function was created by Joe Cursons:
+%   joseph.cursons@unimelb.edu.au
+%
+% Last Updated: 03/09/15
+%
+%  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+%% Perform Pre-Processing
+%  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+    %determine the total number of z-slices sampled
     numZSlicesSampled = size(arrayInZSlices,1);
     
+    %extract the directory contents into a structured array for indexing
     arrayDirContents = dir(stringInImageDirectory);
     numFilesInDir = size(arrayDirContents,1);
+    %move through the files and match to z-stack image data through the
+    % 'Series' string
     iFile = 1;
     flagExitWhileLoop = 0;
     while (iFile <= numFilesInDir) && ~flagExitWhileLoop,
@@ -38,40 +84,18 @@ function [ arrayOutCellImageStack, arrayOutCellImageLayers, arrayOutCellImageBas
     stringChannel = stringImageName(indexChannelLoc+3:indexChannelLoc+4);
     numChannel = uint16(str2double(stringChannel));
     
-    %load the filenames into an array for searching        
-%     arrayFileNamesImageFolder = ls(stringInImageDirectory);
-%     if ispc,
-%         %on Windows, ls produces a cell array
-%         numFilesinImageFolder = size(arrayFileNamesImageFolder,1);
-%         
-%         numImagesInStack = 0;
-%         for iFile = 1:numFilesinImageFolder,
-%             %search against the stack name up to the z-value as a stack-identifier
-%             if strfind(arrayFileNamesImageFolder(iFile,:), stringStackName(1:indexZSliceLoc+2));
-%                 if strfind(arrayFileNamesImageFolder(iFile,:), ['ch0' num2str(numChannel)]),
-%                     numImagesInStack = numImagesInStack + 1;
-%                 end
-%             end
-% 
-%         end
-% 
-%     elseif isunix,
-%         %on *nix, ls produces a cell array
-%         
-        numFilesinImageFolder = length(arrayDirContents);
-        numImagesInStack = 0;
-        for iFile = 1:numFilesinImageFolder,
-            %search against the stack name up to the z-value as a stack-identifier
-            if strfind(arrayDirContents(iFile).name, stringStackName(1:indexZSliceLoc+2));
-                if strfind(arrayDirContents(iFile).name, ['ch0' num2str(numChannel)]),
-                    numImagesInStack = numImagesInStack + 1;
-                end
+    numFilesinImageFolder = length(arrayDirContents);
+    numImagesInStack = 0;
+    for iFile = 1:numFilesinImageFolder,
+        %search against the stack name up to the z-value as a stack-identifier
+        if strfind(arrayDirContents(iFile).name, stringStackName(1:indexZSliceLoc+2));
+            if strfind(arrayDirContents(iFile).name, ['ch0' num2str(numChannel)]),
+                numImagesInStack = numImagesInStack + 1;
             end
-
         end
+
+    end
         
-%     end
-    
     %load the image stack
     arrayImageStack = loadImageStack( stringInImageDirectory, stringStackName, numImagesInStack, numChannel );
     
@@ -83,8 +107,10 @@ function [ arrayOutCellImageStack, arrayOutCellImageLayers, arrayOutCellImageBas
     arrayOutCellImageBoundaryTwo = cell(numImagesInStack,1);
     arrayInCellImageOuterBoundary = cell(numImagesInStack,1);
     
-    
-    % ==================== Populate the Output Arrays =====================
+%  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+%% Populate the Output Arrays
+%  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+
     for iSampledSlice = 1:numZSlicesSampled,
         numZSlice = arrayInZSlices(iSampledSlice);
         arrayOutCellImageStack{numZSlice} = arrayImageStack(:,:,numZSlice);
