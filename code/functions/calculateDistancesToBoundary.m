@@ -4,18 +4,18 @@ function [ arrayEuclidianDist ] = calculateDistancesToBoundary( imageEdge, array
 %   co-ordinates, to a continuous boundary.
 %
 %  Inputs:
-%       imageEdge: a binarised image file containing the tissue-layer 
-%                   boundary, from which the distance of specified x,y
-%                   co-ordinates are to be calculated
-%       arrayPixelCoOrds: a row/column vector containing x,y co-ordinates
-%                   of the positions for distance calculation
+%   - imageEdge: a binarised image file containing the tissue-layer 
+%           boundary, from which the distance of specified x,y co-ordinates
+%           are to be calculated
+%   - arrayPixelCoOrds: a row/column vector containing x,y co-ordinates of
+%           the positions for distance calculation
 %  Output:
-%       arrayEuclidianDist: an array (double precision) containing the
+%   - arrayEuclidianDist: an array (double precision) containing the
 %           Euclidian distance between the specified centroid (x,y) 
-%           positionsand their nearest pixel on the input imageEdge
-%  Dependencies on MATLAB Toolboxes:
-%       Image Processing Toolbox - this function calls upon the bwlabel and
-%                                   regionprops functions
+%           positions and their nearest pixel on the input imageEdge
+%  MATLAB Toolbox dependencies:
+%   - Image Processing Toolbox: this function calls bwlabel and regionprops
+%           
 %
 % This MATLAB function has been released for the GigaScience Data Note:
 %   Cursons et al. (2015). Spatially-transformed fluorescence image data 
