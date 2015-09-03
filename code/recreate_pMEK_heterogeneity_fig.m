@@ -32,6 +32,8 @@
 
 %specify the prefix string for the image data to be analysed
 strImagePrefix = '6_Series004_z004_';
+strTarget = 'MEK_ph';
+numPatient = 2;
 
 %specify the channels to be analysed in this analysis
 % NB: image data have a _ch<#> prefix, this should be 0 for all of the
@@ -84,9 +86,16 @@ strCurrDir = cd;
 % folder, so add this to the MATLAB file path
 addpath(genpath(strCurrDir));
 
-stringProcessedDataPath = 'C:\wc\2015_epidermal_data\data\processed\MEK_ph\Pat_2\';
-stringImageDataPath = 'C:\wc\2015_epidermal_data\data\image\MEK_ph\Pat_2\image_data\';
-stringOutputDir = 'C:\test\';
+%manipulate the file path to determine the appropriate folders
+arrayCurrDirFoldSepPos = strfind(strCurrDir, strFoldSep);
+
+strBaseDir = strCurrDir(1:arrayCurrDirFoldSepPos(end-1));
+
+stringImageDataPath = [ strBaseDir strFoldSep 'image' strFoldSep strTarget strFoldSep 'Pat_' num2str(numPatient) strFoldSep 'image_data' strFoldSep ];
+
+stringProcessedDataPath = [ strBaseDir strFoldSep 'processed' strFoldSep strTarget strFoldSep 'Pat_' num2str(numPatient) strFoldSep  ];
+
+stringOutputDir = strBaseDir;
 
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Match the segmented objects and extract the pixel intensity data
