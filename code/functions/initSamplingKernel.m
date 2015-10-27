@@ -46,7 +46,7 @@ function [ numPixelsPerSample, arrayXOffset, arrayYOffset ] = initSamplingKernel
 
     %determine the central pixel (hopefully within a kernel with an
     % odd-number of pixels along each edge)
-    if iseven(size(arraySamplingKernel,1)),
+    if mod(size(arraySamplingKernel,1),2) == 0,
         disp('warning: the function initSamplingKernel is designed to take a sampling kernel with an odd number of pixels in length (e.g. 3, 5, 7)');
     end
     numKernelCentre = ceil(size(arraySamplingKernel,1)/2);

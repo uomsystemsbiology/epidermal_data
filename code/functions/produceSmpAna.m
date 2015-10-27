@@ -93,9 +93,11 @@ function [ structSigDataOut ] = produceSmpAna( structSampleLocs, arraySamplingKe
     arrayUniquePixelCoOrds = unique(arrayAllPixelCoOrds, 'rows');
     numUniquePixels = length(arrayUniquePixelCoOrds);
 
+    %sort these data 
+    arrayUniquePixelCoOrdsSorted = sortrows(arrayUniquePixelCoOrds, [3, 1, 2]);
 
     %load the images required for sampling
-    arrayUniqueZPositions = unique(arrayUniquePixelCoOrds(:,3));
+    arrayUniqueZPositions = unique(arrayUniquePixelCoOrdsSorted(:,3));
     [ arrayImageData, arrayImageLayers, arrayImageBasalLaminas, arrayImageBoundaryOnes, arrayImageBoundaryTwos, arrayImageOuterBoundaries ] = loadImageStackAsSparse3DCellArrays( arrayUniqueZPositions, stringImgDataPath, stringSegImgPath );
     
 
@@ -120,7 +122,7 @@ function [ structSigDataOut ] = produceSmpAna( structSampleLocs, arraySamplingKe
         structSigDataOut(iPix).SigInt = zeros(1,1,'uint8');
         
         %extract the pixel co-ordinates
-        structSigDataOut(iPix).CoOrds = arrayAllPixelCoOrds(iPix,:);
+        structSigDataOut(iPix).CoOrds = arrayUniquePixelCoOrdsSorted(iPix,:);
         numX = structSigDataOut(iPix).CoOrds(1);
         numY = structSigDataOut(iPix).CoOrds(2);
         numZ = structSigDataOut(iPix).CoOrds(3);
@@ -142,7 +144,7 @@ function [ structSigDataOut ] = produceSmpAna( structSampleLocs, arraySamplingKe
     %co-ordinate individually
     for iZPos = 1:length(arrayUniqueZPositions),
         numZPos = arrayUniqueZPositions(iZPos);
-        arrayInLayerPointer = find(arrayUniquePixelCoOrds(:,3) == numZPos);
+        arrayInLayerPointer = find(arrayUniquePixelCoOrdsSorted(:,3) == numZPos);
 
         array2DCoOrds = zeros(2,length(arrayInLayerPointer), 'uint16');
         for iPix = 1:length(arrayInLayerPointer),

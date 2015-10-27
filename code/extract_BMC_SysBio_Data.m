@@ -1,8 +1,13 @@
 %% sample_to_loessDiscCentroids.m
-% This MATLAB script reads in the sample location data, extracts pixel
-%  intensities from the raw image data, maps to the normalised distance
-%  co-ordinate, performs loess smoothing, and outputs .csv/.tiff at various
-%  stages.
+% This MATLAB script 
+%
+% For the normalized Hill differential equation model, parameterisation was
+%  performed to optimise the model fit for the cytoplasmic and nuclear
+%  phospho-ERK-1/2 data across all three patients; while a more 
+%  comprehensive data set containing phospho-Raf-1 and phospho-MEK-1/2 was
+%  compared against the resulting model fit. These are output as separate
+%  files, created at the end of this script, which can then used by
+%  subsequent MATLAB scripts.
 %
 % A number of functions are used by this script, some of which have
 %  dependencies upon MATLAB Toolboxes:
@@ -18,8 +23,12 @@
 %   Systems Biology Laboratory:
 %       joseph.cursons@unimelb.edu.au
 %
-% Last Updated: 22/09/15
-% 
+% Last Updated: 09/09/15
+%
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+%% Input Parameters
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+ 
 %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Input Parameters
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
@@ -35,40 +44,24 @@ arraySamplingKernel = [ 1 1 1 1 1;
 arrayPatients = 1:3;
 numPatients = length(arrayPatients);
 
-
-%the target proteins/phospho-proteins contained within this data set
+%target proteins/phospho-proteins to be exported from the data
 arrayTargetPaths = { ['CALM'];
-                     ['ERK'];
                      ['ERK_ph'];
-                     ['FOSC'];
-                     ['FRA2'];
-                     ['ITGB1'];
-                     ['ITGB4'];
-                     ['JUNB'];
-                     ['JUNC'];
-                     ['K10'];
-                     ['K14'];
-                     ['MEK'];
                      ['MEK_ph'];
-                     ['RAF'];
-                     ['RAF_ph'];
-                     ['SFN'] };
-% arrayTargetPaths = { ['CALM'];
-%                      ['ERK_ph'];
-%                      ['MEK_ph'];
-%                      ['RAF_ph'] };
+                     ['RAF_ph'] };
 numTargets = length(arrayTargetPaths);
 
-%the sub-cellular localisations examined within this data set
+%the sub-cellular localisations examined within this data set (note that
+% when there are no sampled data present; e.g. for plasma-membrane
+% phospho-MEK-1/2, an array of zeroes will be present)
 arrayLocStrings = { [ 'C' ];
                     [ 'N' ];
                     [ 'M' ] };
 numLocalisations = length(arrayLocStrings);   
 
-numSpatialBins = 28;
-arrayNormDistRatio = [1 4 2];
+numSpatialBins = 7;
+arrayNormDistRatio = [ 1 4 2 ];
 numLoessWindowSize = 0.5;
-
 
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Specify Flags/Strings to Control Data Input/Output and Formats
@@ -83,7 +76,7 @@ numLoessWindowSize = 0.5;
  
 %sample location data - MATLAB or 
 flagLoadSampleLocationData = true;
-stringFormatForSampleLocationDataToLoad = 'Image';
+stringFormatForSampleLocationDataToLoad = 'MATLAB';
 
 %sample analysis data
 flagLoadSampleAnalysisData = true;
@@ -93,10 +86,10 @@ flagSaveSampleAnalysisData = false;
 stringFormatForSampleAnalysisDataToSave = 'MATLAB';
 
 %loess curve data
-flagLoadLoessCurveData = false;
+flagLoadLoessCurveData = true;
 stringFormatForLoessCurveDataToLoad = 'MATLAB';
-flagReCalcLoessCurveData = true;
-flagSaveLoessCurveData = true;
+flagReCalcLoessCurveData = false;
+flagSaveLoessCurveData = false;
 stringFormatForLoessCurveDataToSave = 'MATLAB';
 
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
@@ -131,17 +124,25 @@ stringMountedFolder = 'C:\wc\2015_epidermal_data\data\';
 strProcImgDataPath = [ stringMountedFolder 'processed' strFoldSep ];
 strRawImgDataPath = [ stringMountedFolder 'image' strFoldSep ];
 
+stringOutputFolder = 'c:\test\';
 
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Perform Pre-Processing
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
  
-if (exist(strProcImgDataPath, 'dir') == 7) && (exist(strProcImgDataPath, 'dir') == 7),
+arrayLoessDataByLoc = cell(numLocalisations, 1);
+arrayDataMeanByLoc = cell(numLocalisations, 1);
+arrayDataStdDevByLoc = cell(numLocalisations, 1);
+
     
-    arrayAllDataByLoc = cell(numLocalisations, 1);
+if (exist(strProcImgDataPath, 'dir') == 7) && (exist(strProcImgDataPath, 'dir') == 7),
 
     for iLoc = 1:numLocalisations,
-        arrayAllDataByLoc{iLoc} = zeros(numSpatialBins, numTargets, numPatients, 'double');
+        %as noted above, the output data are taken at d_norm = [0:0.5:7]
+        arrayLoessDataByLoc{iLoc} = zeros((numSpatialBins*2)+1, numTargets, numPatients, 'double');
+        arrayDataMeanByLoc{iLoc} = zeros(numTargets, numPatients, 'double');
+        arrayDataStdDevByLoc{iLoc} = zeros(numTargets, numPatients, 'double');
+        
         for iTarget = 1:numTargets,
             for iPatient = 1:numPatients,
                 numPatient = arrayPatients(iPatient);
@@ -156,7 +157,6 @@ if (exist(strProcImgDataPath, 'dir') == 7) && (exist(strProcImgDataPath, 'dir') 
                     %load the sample location data
                     if flagLoadSampleLocationData,
                         structSampleLocs = loadSampLocs(stringSmpLocPath, stringFormatForSampleLocationDataToLoad);
-%                         structSampleLocsFromMATLAB = loadSampLocs(stringSmpLocPath, 'MATLAB');
                     else
                         %there are some issues with including the scripts for
                         % performing new sampling as it requires the MATLAB GUI
@@ -176,7 +176,6 @@ if (exist(strProcImgDataPath, 'dir') == 7) && (exist(strProcImgDataPath, 'dir') 
                         %produce a 'SampleAnalysis' structured array
                         if flagReCalcSampleAnalysisData,
                             structSignalIntensityData = produceSmpAna(structSampleLocs, arraySamplingKernel, stringImgDataPath, stringSegImgPath);
-%                             structSignalIntensityDataFromMATLAB = produceSmpAna(structSampleLocsFromMATLAB, arraySamplingKernel, stringImgDataPath, stringSegImgPath);
                             %save the new 'SampleAnalysis' structured array if
                             % specified
                             if flagSaveSampleAnalysisData,
@@ -185,35 +184,55 @@ if (exist(strProcImgDataPath, 'dir') == 7) && (exist(strProcImgDataPath, 'dir') 
                         end
                     end
 
+                    %extract the required information from the structured
+                    % array into arrays for loess smoothing
                     numSamplePoints = length(structSignalIntensityData);
                     arrayXToSmooth = zeros(numSamplePoints,1,'double');
-%                     arrayYToSmooth = zeros(numSamplePoints,1,'uint8');
-%                     arrayXToSmoothFromMATLAB = zeros(numSamplePoints,1,'double');
-%                     arrayYToSmoothFromMATLAB = zeros(numSamplePoints,1,'uint8');
+                    arrayYToSmooth = zeros(numSamplePoints,1,'uint8');
                     for iSample = 1:numSamplePoints,
                         arrayXToSmooth(iSample) = structSignalIntensityData(iSample).NormDist;
                         arrayYToSmooth(iSample) = structSignalIntensityData(iSample).SigInt;
-%                         arrayXToSmoothFromMATLAB(iSample) = structSignalIntensityDataFromMATLAB(iSample).NormDist;
-%                         arrayYToSmoothFromMATLAB(iSample) = structSignalIntensityDataFromMATLAB(iSample).SigInt;
                     end
+                    
+                    arrayDataMeanByLoc{iLoc}(iTarget,iPatient) = mean(double(arrayYToSmooth));
+                    arrayDataStdDevByLoc{iLoc}(iTarget,iPatient) = std(double(arrayYToSmooth));
 
                     %load the loess-smoothed data
                     if flagLoadLoessCurveData,
                         arrayLoessCurve = loadLoessCurve(stringSmpLocPath, stringFormatForLoessCurveDataToLoad);
+                        if (arrayLoessCurve == -1),
+                            disp(['warning: flagLoadLoessCurveData is set to true, but the loess data for ' arrayTargetPaths{iTarget} ' in the ' arrayLocStrings{iLoc} ...
+                                   ' compartment cannot be found in the specified format (' stringFormatForLoessCurveDataToLoad '), ' ...
+                                   'attempting to re-calculate these data and output will automatically be saved, however run time will be significantly increased' ]);
+                            arrayLoessCurve = calculateLoessCurve( arrayXToSmooth, arrayYToSmooth, numSpatialBins, arrayNormDistRatio, numLoessWindowSize );
+                            %automatically save these in the 'expected
+                            % input' format
+                            flagResult = saveLoessCurve(arrayLoessCurve, stringSmpLocPath, stringFormatForLoessCurveDataToLoad);
+                        end
                     else
                         %re-perform loess smoothing if specified
                         if flagReCalcLoessCurveData,
                             arrayLoessCurve = calculateLoessCurve( arrayXToSmooth, arrayYToSmooth, numSpatialBins, arrayNormDistRatio, numLoessWindowSize );
-%                             arrayLoessCurveFromMATLAB = calculateLoessCurve( arrayXToSmoothFromMATLAB, arrayYToSmoothFromMATLAB, numSpatialBins, arrayNormDistRatio, numLoessWindowSize );
                             if flagSaveLoessCurveData,
                                 flagResult = saveLoessCurve(arrayLoessCurve, stringSmpLocPath, stringFormatForLoessCurveDataToSave);
                             end
                         end
                     end
 
-                    arrayBinCentres = interp1(arrayLoessCurve(1,:), arrayLoessCurve(2,:), 0.5:1:(numSpatialBins-0.5));
-
-                    arrayAllDataByLoc{iLoc}(:,iTarget,iPatient) = arrayBinCentres;
+                    %confirm the scaling of the normalised distance
+                    % co-ordinate
+                    numMaxNormDist = ceil(max(arrayLoessCurve(1,:)));
+                    if ((numMaxNormDist == 7) || (numMaxNormDist == 14) || (numMaxNormDist == 21) || (numMaxNormDist == 28)),
+                        numNormDistSpacer = double(numMaxNormDist)/14;
+                    else
+                        disp('warning: maximum normalised distance an unexpected value (not a factor of 7 = sum(arrayNormDistRatio))');
+                        numMaxNormDist = 28;
+                    end
+                    arrayOutputNormDistPositions = [0:numNormDistSpacer:double(numMaxNormDist)];
+                    
+                    arrayOutputPoints = interp1(arrayLoessCurve(1,:), arrayLoessCurve(2,:), arrayOutputNormDistPositions);
+                    arrayLoessDataByLoc{iLoc}(:,iTarget,iPatient) = arrayOutputPoints;
+                    
                 else
                     disp(['warning: ' arrayTargetPaths{iTarget} ', Patient ' num2str(iPatient) ' has no data for localisation ' arrayLocStrings{iLoc}]);
                 end
@@ -224,10 +243,37 @@ if (exist(strProcImgDataPath, 'dir') == 7) && (exist(strProcImgDataPath, 'dir') 
     
 else
     disp('warning: data files cannot be located');
-    
 end
 
 
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Create Output
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+%output the cytoplasmic and nuclear phospho-ERK data for fitting 
+filePhosphoERKCytoForFitting = fopen([stringOutputFolder 'phosphoERK_cyto_toFit.csv' ], 'w+'); 
+
+%print the header
+fprintf(filePhosphoERKCytoForFitting, ['Patient']);
+for iXPos = 1:((numSpatialBins*2)+1),
+    fprintf(filePhosphoERKCytoForFitting, [',x=' num2str(iXPos)]);
+end
+fprintf(filePhosphoERKCytoForFitting, ['\n']);
+
+%print the data by patient
+for iPatient = 1:numPatients,
+    %normalise the data around the mean/standard deviation (convert to
+    % z-score); iLoc = 1 == C; iTarget = 2 == ERK_ph
+    arrayOutputData = arrayLoessDataByLoc{1}(:,2,iPatient);
+    arrayOutputDataNorm = (arrayOutputData - arrayDataMeanByLoc{1}(2,iPatient))/arrayDataStdDevByLoc{1}(2,iPatient);
+    %output the normalised data
+    fprintf(filePhosphoERKCytoForFitting, ['Pat' num2str(iPatient)]);
+    for iXPos = 1:((numSpatialBins*2)+1),
+        fprintf(filePhosphoERKCytoForFitting, [',' num2str(arrayOutputDataNorm(iXPos),'%f')]);
+    end
+    %line feed
+    if iPatient < numPatients,
+        fprintf(filePhosphoERKCytoForFitting, ['\n']);
+    end
+end
+
+fclose(filePhosphoERKCytoForFitting);
