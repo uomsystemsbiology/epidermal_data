@@ -20,20 +20,39 @@
 %       rotate_image.m was created by Ohad Gal: 
 %           http://www.mathworks.com/matlabcentral/profile/authors/869576-ohad-gal
 %
+% Please note that this script is a behemoth and could be (may be in the
+%  future) written using a number of functions.
+% Also note that these scripts were developed when I was using the data for
+%  network inference methods so I regularly refer to a 'node' which is
+%  shorthand for a protein within a specific-subcellular localisation
+%
 % This script was created by Joe Cursons at the University of Melbourne
 %   Systems Biology Laboratory:
 %       joseph.cursons@unimelb.edu.au
 %
-% Last Updated: 19/10/15
+% Last Updated: 03/11/15
 %
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
-%% Input Parameters
- %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+%% Input Parameters - User Defined Settings
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %   
+%in this section I specify a number of arrays which can be used for 
+% subsequent indexing between different data arrays to create the output
+% figures
+
+%examine loess curves/smoothed outputs for all three patients contained in
+% these data 
+arrayPatients = 1:3;
+numPatients = size(arrayPatients,2); 
  
- 
- 
- % ========================= User Defined Settings =========================
-% Output nodes
+%as noted above, these scripts were developed when I was using network
+% methods and the term node refers to a sub-cellular localised protein; in
+% total there are 17 target proteins over three possible sub-cellular 
+% localisations (some are "empty"/no observation) --> 51 total nodes
+numNodesTotal = 51; 
+
+%arrayGroupedNodes specifies sub-cellular localisations as columns and
+% proteins as nodes, containing index numbers for the 'nodes' (this array
+% is in-part a relic of a previous script structure)
 arrayGroupedNodes = [  1,  0, 35;                   % ITGB1
                        3,  0, 37;                   % ITGB4
                        4,  0,  0;                   % SFN
@@ -51,16 +70,21 @@ arrayGroupedNodes = [  1,  0, 35;                   % ITGB1
                        16,  0,  0;                  % K10
                        17,  0,  0  ];               % K14
 numOutputProteins = size(arrayGroupedNodes,1);
-numNodesTotal = 51;
 
+%arrayOutputNodeOrder provides a condensed version of arrayGroupedNodes
+% witout padding zeroes
+arrayOutputNodeOrder = [ 1, 3:17, 22:32, 35, 37, 39 ];
+numOutputNodes = length(arrayOutputNodeOrder);
+
+%arrayOutputProtFolders contains protein folder names in an order which
+% corresponds to the rows of arrayGrouped Nodes
 arrayOutputProtFolders = { 'ITGB1'; 'ITGB4'; 'SFN'; 'CALM'; 'Raf'; ...
                            'Raf_ph'; 'MEK'; 'MEK_ph'; 'ERK'; 'ERK_ph'; ...
                            'JUNB'; 'JUNC'; 'FOSC'; 'FRA2'; 'K10'; ...
                            'K14' };
 
-arrayOutputNodeOrder = [ 1, 3:17, 22:32, 35, 37, 39 ];
-numOutputNodes = length(arrayOutputNodeOrder);
-
+%arrayOutputProtFolders contains LaTeX compatible strings ('$$' around
+% special characters) for overlaying on the figures.
 arrayProteinLateXString = { ['$${\beta}1$$-Integrin $$\;$$']; ...
                             ['$${\beta}4$$-Integrin $$\;$$']; ...
                             ['14-3-3$${\sigma}$$']; ...
@@ -77,42 +101,85 @@ arrayProteinLateXString = { ['$${\beta}1$$-Integrin $$\;$$']; ...
                             ['Fra-2']; ...
                             ['Keratin-10 $$\;$$']; ...
                             ['Keratin-14 $$\;$$'] };
-
-
-
-% Output Patients
+                        
+                        
+%specify the patient for the 'representative image data' of the protein
 arrayPatientToDisplay = [ 1; 2; 2; 1; 2; ...
                           2; 1; 2; 2; 1; 3; ...
                           2; 3; 2; 3; 1 ];
-arrayPatients = 1:3;
-numPatients = size(arrayPatients,2);
-
-arrayPatientColors = { [ 1.0 0.0 0.0 ];
-                       [ 0.0 1.0 0.0 ];
-                       [ 0.0 0.0 1.0 ] };
-
-%folder paths
-stringOutputDataFolder = 'C:\test\';
-
-%display settings
-numFigScaleMult = 4;
+%specify the z-position/image to use from the patient specified above                      
 arrayRepImageZ = { 63; 15; 21; 25; 15; ...
                     5; 14; 5; 30; 6; 20; ...
                     10; 2; 5; 25; 25 };
+
+%the color scheme Red = Pat1, Green = Pat2 and Blue = Pat3 is used across
+% these data
+arrayPatientColors = { [ 1.0 0.0 0.0 ];
+                       [ 0.0 1.0 0.0 ];
+                       [ 0.0 0.0 1.0 ] };
+%use 'muted' R/G/B colors for the data cloud 
+arrayDataCloudColor = [ 1.0, 0.8, 0.8;
+                        0.8, 1.0, 0.8;
+                        0.8, 0.8, 1.0 ];
+                   
+
+%specify the spatial discretisation settings for the epidermal tissue
+numSpatialBins = 28;
+arrayNormDistRatio = [ 1 4 2 ];
+numTissueLayers = size(arrayNormDistRatio, 2);
+
+%specify the smoothing parameter for the loess smoothing (the relative
+% fraction of 'nearest' data used for averaging)
+numLoessWindowSize = 0.5;
+
+%specify the size of the confidence interval for the loess smoothing
+numUniDirConfInt = 0.90;
+                   
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+%% Input Parameters - Figure Display Settings
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %   
+%set the scaling factor for displaying the image on the screen
+numFigScaleMult = 4;
+
+%specify font and marker sizes etc within the output images
+numPlotFontSizeTitle = 11;
+numPlotFontSize = 9;
+numPlotDataCloudMarkerSize = 2;
+numPlotLowessMarkerSize = 8;
+numOverlayBorderWidth = 2;
+numSubFigLabelFontSize = 18;
+
+%specify the size of the input images
+numImageSizePixels = 1024;
+
+%specify the number of pixels within 10 um for each of the image data sets
+% for drawing the scale bar
 arrayNumPixelsIn10um = [ 067; 065; 069; 074; 058; ...
                          073; 072; 058; 063; 069; 077; ...
                          065; 090; 061; 079; 067 ];
+                     
+%specify the scale bar relative width and spacing values (from the image
+% border)
 numFractionScaleBarSpacing = 0.1;
 numFractScaleBarWidth = 0.025;
+
+%specify the number of images in each image stack
+%TODO: FINISH POPULATING THIS
 arrayImagesInStack = [ 66; 64; 32; 64; 00; ...
                      00; 00; 00; 00; 00; 00; ...
                      00; 00; 00; 71; 00; ];
+                 
+%specify the angle for rotating the display/representative image
 arrayRepImageRotate = [ 180; 180; 090; 180; 000; ...
                         180; 180; 000; 000; 180; 180; ...
                         000; 000; 180; 090; 180 ];
+                    
+%specify the angle for rotating the zoomed display/representative image
 arrayZoomedRepImageRotate = [ 000; -20; -15; -15; -20; ...
                               -10; 5; -20; 000; -20; -05; ...
                               -20; -45; -30; 030; 000  ];
+                          
+%specify the x-y coordinates for the zoomed region (before rotation)
 arrayZoomedRepImageCrop = [  311   625   296   855;        % ymin ymax xmin xmax
                              641  1045   276   995;
                              201   605   246   965;
@@ -129,14 +196,27 @@ arrayZoomedRepImageCrop = [  311   625   296   855;        % ymin ymax xmin xmax
                              411   815   316  1035;
                              456   680   516   915;
                              301   705   216   935 ];
-                         
-arrayOtherImageTypes = cell(numPatients,1); %2 = surface plot, 3 = 3D render
+
+%specify the 'figure type' for the different images - there are different
+% numbers of sub-cellular localisations, so different plot types are
+% included etc, this is achieved by specifying these values over a number
+% of arrays
+%the 'other image' types for display (excluding the representative image)
+% 2 = surface plot, 3 = 3D render
+arrayOtherImageTypes = cell(numPatients,1); 
+%the angle for rotation of this other image
 arrayOtherImageRot = zeros(numPatients,2,'double');
-arrayNumSurfaceInterp = ones(numPatients,2,'uint8');
-arrayOtherImageCoOrds = cell(numPatients,2); %xmin xmax ymin ymax zmin zmax: 0000 if not defined
+%the x-y co-ordinates for the 'other image'
+% xmin xmax ymin ymax zmin zmax: 0000 if not defined
+arrayOtherImageCoOrds = cell(numPatients,2); 
+%the 'view' parameter ("camera angle") for the other image
 arrayOtherImageView = cell(numPatients,2);
+%the number of times to perform interpolation for surface plots
+arrayNumSurfaceInterp = ones(numPatients,2,'uint8');
+%the number of isosurface groups to use for volume/3D render 'other images'
 arrayIsoSurfGroups = cell(numPatients,1);
 
+%ITGB1 - surface plot and a 3D render
 arrayOtherImageTypes{1} = [ 2 3 ];
 arrayOtherImageCoOrds{1,1} = [ 0334 0525 0495 0605 0063 0063 ];
 arrayOtherImageCoOrds{1,2} = [ 0334 0525 0495 0605 0045 0065 ];
@@ -148,7 +228,7 @@ arrayIsoSurfGroups{1} = {[ 099 129 ];
                          [ 130 169 ];
                          [ 170 255 ]};
 
-
+%ITGB4 - surface plot and a 3D render
 arrayOtherImageTypes{2} = [ 2 3 ];
 arrayOtherImageCoOrds{2,1} = [ 0325 0460 0300 0400 0015 0015 ];
 arrayOtherImageCoOrds{2,2} = [ 0325 0460 0300 0400 0015 0035 ];
@@ -158,13 +238,15 @@ arrayOtherImageView{2,2} = [ -19 58 ];
 arrayIsoSurfGroups{2} = {[ 050 069 ];
                          [ 070 099 ];
                          [ 100 255 ]};
-                    
+
+%SFN - surface plot
 arrayOtherImageTypes{3} = [ 2 ];
 arrayOtherImageCoOrds{3,1} = [ 0330 0520 0300 0465 0000 0000 ];
 arrayOtherImageRot(3,:) = [ -20, 0 ];
 arrayNumSurfaceInterp(3,:) = [ 4, 1 ];
 arrayOtherImageView{3,1} = [ -18 78 ];               
                     
+%CALM - surface plot and a 3D render
 arrayOtherImageTypes{4} = [ 2 3 ];
 arrayOtherImageCoOrds{4,1} = [ 0495 0685 0740 0865 0025 0025 ];
 arrayOtherImageCoOrds{4,2} = [ 0495 0685 0740 0865 0015 0035 ];
@@ -176,72 +258,84 @@ arrayIsoSurfGroups{4} = {[ 075 099 ];
                          [ 100 119 ];
                          [ 120 255 ]};
                     
+%Raf - surface plot
 arrayOtherImageTypes{5} = [ 2 ];
 arrayOtherImageCoOrds{5,1} = [ 0400 0520 0550 0615 0000 0000 ];
 arrayOtherImageRot(5,:) = [ 0, 0 ];
 arrayNumSurfaceInterp(5,:) = [ 4, 1 ];
 arrayOtherImageView{5,1} = [ -21 88 ];
 
+%Raf_ph - surface plot
 arrayOtherImageTypes{6} = [ 2 ];
 arrayOtherImageCoOrds{6,1} = [ 0450 0620 0510 0650 0000 0000 ];
 arrayOtherImageRot(6,:) = [ 0, 0 ];
 arrayNumSurfaceInterp(6,:) = [ 4, 1 ];
 arrayOtherImageView{6,1} = [ -21 86 ];
 
+%MEK - surface plot
 arrayOtherImageTypes{7} = [ 2 ];
 arrayOtherImageCoOrds{7,1} = [ 0565 0670 0635 0760 0000 0000 ];
 arrayOtherImageRot(7,:) = [ 0, 0 ];
 arrayNumSurfaceInterp(7,:) = [ 4, 1 ];
 arrayOtherImageView{7,1} = [ -21 86 ];
 
+%MEK_ph - surface plot
 arrayOtherImageTypes{8} = [ 2 ];
 arrayOtherImageCoOrds{8,1} = [ 0445 0670 0595 0750 0000 0000 ];
 arrayOtherImageRot(8,:) = [ -20, 0 ];
 arrayNumSurfaceInterp(8,:) = [ 4, 1 ];
 arrayOtherImageView{8,1} = [ -21 86 ];
 
+%ERK - surface plot
 arrayOtherImageTypes{9} = [ 2 ];
 arrayOtherImageCoOrds{9,1} = [ 0345 0470 0430 0575 0000 0000 ];
 arrayOtherImageRot(9,:) = [ 0, 0 ];
 arrayNumSurfaceInterp(9,:) = [ 4, 1 ];
 arrayOtherImageView{9,1} = [ -16 82 ];
 
+%ERK_ph - surface plot
 arrayOtherImageTypes{10} = [ 2 ];
 arrayOtherImageCoOrds{10,1} = [ 0660 0780 0440 0540 0000 0000 ];
 arrayOtherImageRot(10,:) = [ 0, 0 ];
 arrayNumSurfaceInterp(10,:) = [ 4, 1 ];
 arrayOtherImageView{10,1} = [ -15 84 ];
 
+%JUNB - surface plot
 arrayOtherImageTypes{11} = [ 2 ];
 arrayOtherImageCoOrds{11,1} = [ 0460 0580 0750 0865 0000 0000 ];
 arrayOtherImageRot(11,:) = [ -5, 0 ];
 arrayNumSurfaceInterp(11,:) = [ 4, 1 ];
 arrayOtherImageView{11,1} = [ -16 86 ];
 
+%JUNC - surface plot
 arrayOtherImageTypes{12} = [ 2 ];
 arrayOtherImageCoOrds{12,1} = [ 0565 0655 0595 0690 0000 0000 ];
 arrayOtherImageRot(12,:) = [ -20, 0 ];
 arrayNumSurfaceInterp(12,:) = [ 4, 1 ];
 arrayOtherImageView{12,1} = [ -16 86 ];
 
+%FOSC - surface plot
 arrayOtherImageTypes{13} = [ 2 ];
 arrayOtherImageCoOrds{13,1} = [ 0530 0710 0580 0700 0000 0000 ];
 arrayOtherImageRot(13,:) = [ -45, 0 ];
 arrayNumSurfaceInterp(13,:) = [ 4, 1 ];
 arrayOtherImageView{13,1} = [ -18 82 ];
 
+%FRA2 - surface plot
 arrayOtherImageTypes{14} = [ 2 ];
 arrayOtherImageCoOrds{14,1} = [ 0650 0865 0660 0865 0000 0000 ];
 arrayOtherImageRot(14,:) = [ -45, 0 ];
 arrayNumSurfaceInterp(14,:) = [ 4, 1 ];
 arrayOtherImageView{14,1} = [ -18 86 ];
 
+%K10 - surface plot
 arrayOtherImageTypes{15} = [ 2 ];
 arrayOtherImageCoOrds{15,1} = [ 0635 0730 0400 0520 0000 0000 ];
 arrayOtherImageRot(15,:) = [ 30, 0 ];
 arrayNumSurfaceInterp(15,:) = [ 1, 1 ];
 arrayOtherImageView{15,1} = [ 16 64 ];
 
+%K14 - surface plot
 arrayOtherImageTypes{16} = [ 2 ];
 arrayOtherImageCoOrds{16,1} = [ 0245 0490 0200 0330 0000 0000 ];
 arrayOtherImageRot(16,:) = [ 0, 0 ];
@@ -249,159 +343,197 @@ arrayNumSurfaceInterp(16,:) = [ 4, 1 ];
 arrayOtherImageView{16,1} = [ -25 76 ];
 
 
-numImageSizePixels = 1024;
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+%% Path Manipulations
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 
-%spatial discretisation settings
-numSpatialBins = 28;
-arrayNormDistRatio = [ 1 4 2 ];
-numTissueLayers = size(arrayNormDistRatio, 2);
+%depending upon the OS, use a different folder separater (forward vs back
+% slash)
+if ispc,
+    strFolderSep = '\';
+elseif isunix,
+    strFolderSep = '/';
+else
+    disp(['warning: cannot determine the operating system, defaulting to ' ...
+            'forward slash for the folder path separator' ] );
+    strFolderSep = '/';
+end
 
+%extract the current directory
+strCurrDir = cd;
 
-numUniDirConfInt = 0.90;
+%add the function sub-folders to the MATLAB path
+addpath(genpath(strCurrDir));
 
-numLoessWindowSize = 0.5;
+%manipulate the file path to determine the appropriate folders
+if arrayCurrDirFoldSepPos(end) == length(strCurrDir),
+    %there is a backslash at the end
+    strBaseDir = strCurrDir(1:(arrayCurrDirFoldSepPos(end-1)));
+else
+    strBaseDir = strCurrDir(1:(arrayCurrDirFoldSepPos(end)));
+end
 
+%determine the relative image data folder path
+strImgDataFolder = [ strBaseDir 'image' strFolderSep ];
 
-numPlotFontSizeTitle = 11;
-numPlotFontSize = 9;
-numPlotDataCloudMarkerSize = 2;
-numPlotLowessMarkerSize = 8;
-numOverlayBorderWidth = 2;
-numSubFigLabelFontSize = 18;
+%determine the relative processed data folder path
+strProcDataFolder = [ strBaseDir 'processed' strFolderSep ];
+    
+%for now just output to the base directory
+stringOutputDataFolder = strBaseDir;
 
-arrayDataCloudColor = [ 1.0, 0.8, 0.8;
-                        0.8, 1.0, 0.8;
-                        0.8, 0.8, 1.0 ];
-                    
-%% ====================== Array/Variable Management =======================
-%directory management
-stringCurrentDirectory = cd;
-addpath(genpath(stringCurrentDirectory));
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+%% Perform Pre-Processing
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 
-%spatial discretisation settings
+%extract the full spatial discretisation arrays
 [arrayIntervalCentres, arrayDistIntervals, arrayDivisionIndices] = calculateSpatialDivisions( numSpatialBins, arrayNormDistRatio );
 arrayLayerBoundaries = arrayDivisionIndices-1;
-% 
-% %create some extra output arrays
-% arrayLoessCIBounds = cell(numPatients, numNodesTotal, numTissueLayers);
-% arrayLoessCIXPos = cell(numPatients, numNodesTotal, numTissueLayers);
-% 
-% strFolderSep = '\';
-% 
-% arrayCurrDirFoldSepPos = strfind(stringCurrentDirectory, strFolderSep);
-% 
-% strImgDataFolder = 'C:\wc\2015_epidermal_data\data\image\';
-% strProcDataFolder = 'C:\wc\2015_epidermal_data\data\processed\';
-% 
-% %% ====================== Populate the Output Arrays =======================
-% for iNode = 1:numOutputNodes,
-%     
-%     numNode = arrayOutputNodeOrder(iNode);
-%     [numOutputProt, numLoc] = find(arrayGroupedNodes == numNode);
-%     
-%     if numLoc == 1,
-%         strLoc = 'C';
-%     elseif  numLoc == 2,
-%         strLoc = 'N';
-%     elseif  numLoc == 3,
-%         strLoc = 'M';
-%     else
-%         disp(['warning: the sample location cannot be determined from "arrayGroupedNodes" - numLoc == ' num2str(numLoc)]);
-%     end
-%     
-%     for iPatient = 1:numPatients,
-%         
-%         stringSpecificProcDataFolder = [strProcDataFolder arrayOutputProtFolders{numOutputProt} strFolderSep 'Pat_' num2str(iPatient) strFolderSep strLoc strFolderSep ];
-%         structSampleAnalysis = loadSampAnalysis( stringSpecificProcDataFolder, '.mat' );
-% 
-%         numObjects = length(structSampleAnalysis);
-%         numSamplesPerObject = size(structSampleAnalysis(1).NormDist,1);
-%         numPixelsPerSample = size(structSampleAnalysis(1).SigInt,2);
-%         arraySampleValues = zeros(numObjects*numSamplesPerObject, numPixelsPerSample, 'uint8');
-%         arraySamplePositions = zeros(numObjects*numSamplesPerObject,1, 'double');
-%         for iObject = 1:numObjects,
-%             for iSample = 1:numSamplesPerObject,
-%                 arraySamplePositions(  (iObject-1)*numSamplesPerObject + iSample  ) = structSampleAnalysis(iObject).NormDist(iSample);
-%                 arraySampleValues(  (iObject-1)*numSamplesPerObject + iSample, :  ) = structSampleAnalysis(iObject).SigInt(iSample,:);
-%             end 
-%         end
-%         clear structSampleAnalysis;
-%         
-%         arraySamplePositions = rescaleNormDist(arraySamplePositions, numSpatialBins, arrayNormDistRatio);
-%         
-%         arrayLoessData = loadLoessCurve(stringSpecificProcDataFolder, '.mat');
-%         
-%         arrayTempLoessXPos = arrayLoessData(1,:);
-%         arrayTempLoess = arrayLoessData(2,:);
-%         
-%         for iTissueLayer = 1:numTissueLayers,
-%             
-%             numStartX = double(arrayDivisionIndices(iTissueLayer)-1);
-%             numEndX = double(arrayDivisionIndices(iTissueLayer+1)-1);
-%             
-%             if iTissueLayer < numTissueLayers,
-%                 arraySamplesInTLIndex = find( (arraySamplePositions >= numStartX) & (arraySamplePositions < numEndX) );
-%                 arrayLoessInTLIndex = find( (arrayTempLoessXPos >= numStartX) & (arrayTempLoessXPos < numEndX) );
-%             elseif iTissueLayer == numTissueLayers,
-%                 arraySamplesInTLIndex = find( (arraySamplePositions >= numStartX) & (arraySamplePositions <= numEndX) );
-%                 arrayLoessInTLIndex = find( (arrayTempLoessXPos >= numStartX) & (arrayTempLoessXPos <= numEndX) );
-%             end
-%             
-%             arraySamplePositionsInTL = arraySamplePositions(arraySamplesInTLIndex);
-%             [ arraySortedXPos, arrayIndexSortedXPos ] = sort(arraySamplePositionsInTL);
-%                         
-%             arrayLoessinTL = arrayTempLoess(arrayLoessInTLIndex);
-%             arrayLoessinTLXPos = arrayTempLoessXPos(arrayLoessInTLIndex);
-%             
-%             arrayLoessCIBounds{iPatient, numNode, iTissueLayer} = zeros(length(arrayLoessinTLXPos),2,'double');
-%             arrayLoessCIXPos{iPatient, numNode, iTissueLayer} = zeros(length(arrayLoessinTLXPos),1,'double');
-%         
-%             numClosestPoints = int32(double(length(arraySamplesInTLIndex))*numLoessWindowSize);
-%             
-%             for iXPos = 1:length(arrayLoessInTLIndex),
-% 
-%                 numLoessVal = arrayLoessinTL(iXPos);
-%                 numXPos = arrayLoessinTLXPos(iXPos);
-% 
-%                 arrayXPosDiff = arraySortedXPos - numXPos;
-%                 arrayXPosAbsDiff = abs(arrayXPosDiff);
-%                 [ arraySortedXPosAbsDiff, arrayIndexSortedXPosAbsDiff ] = sort(arrayXPosAbsDiff);
-%                 
-%                 arrayLoessCIXPos{iPatient, numNode, iTissueLayer}(iXPos) = numXPos;
-% 
-%                 arrayTempPointer = arrayIndexSortedXPos(arrayIndexSortedXPosAbsDiff(1:numClosestPoints));
-%                 arrayTruePointer = arraySamplesInTLIndex(arrayTempPointer);
-%                 
-%                 arrayLocalSampleValues = arraySampleValues(arrayTruePointer,:);
-%                 arrayLocalSampleDiff = double(arrayLocalSampleValues(:)) - numLoessVal;
-%                 
-%                 arrayAboveLoessIndex = find(arrayLocalSampleDiff > 0);
-%                 arrayBelowLoessIndex = find(arrayLocalSampleDiff < 0);
-%                 
-%                 if ~isempty(arrayAboveLoessIndex),
-%                     [arrayTempFreq, arrayTempInt] = ecdf(arrayLocalSampleDiff(arrayAboveLoessIndex));
-%                     arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,1) = interp1(arrayTempFreq,arrayTempInt, numUniDirConfInt);
-%                 else
-%                     arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,1) = NaN;
-%                 end
-%                 
-%                 if ~isempty(arrayBelowLoessIndex),
-%                     [arrayTempFreq, arrayTempInt] = ecdf(arrayLocalSampleDiff(arrayBelowLoessIndex));
-%                     arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,2) = interp1(arrayTempFreq,arrayTempInt, (1-numUniDirConfInt));
-%                 else
-%                     arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,2) = NaN;
-%                 end
-%                 
-%             end
-% 
-%         end
-%  
-%     end
-%     
-%     
-% end
 
+%calculate the confidence interval bounds for loess smoothing at various
+% positions along the normalised distance coordinate
+arrayLoessCIBounds = cell(numPatients, numNodesTotal, numTissueLayers);
+arrayLoessCIXPos = cell(numPatients, numNodesTotal, numTissueLayers);
 
+%move through all specified output nodes
+for iNode = 1:numOutputNodes,
+    
+    %determine the target protein/localisation
+    numNode = arrayOutputNodeOrder(iNode);
+    [numOutputProt, numLoc] = find(arrayGroupedNodes == numNode);
+    
+    %use this to specify the data sub-folder
+    if numLoc == 1,
+        strLoc = 'C';
+    elseif  numLoc == 2,
+        strLoc = 'N';
+    elseif  numLoc == 3,
+        strLoc = 'M';
+    else
+        disp(['warning: the sample location cannot be determined from "arrayGroupedNodes" - numLoc == ' num2str(numLoc)]);
+    end
+    
+    %step through every patient
+    for iPatient = 1:numPatients,
+        
+        %determine the data sub-folder from the target/patient
+        stringSpecificProcDataFolder = [strProcDataFolder arrayOutputProtFolders{numOutputProt} strFolderSep 'Pat_' num2str(iPatient) strFolderSep strLoc strFolderSep ];
+        
+        %load the analysed sample data which have been converted to
+        % normalised distance
+        structSampleAnalysis = loadSampAnalysis( stringSpecificProcDataFolder, '.mat' );
+
+        %extract the signal intensity data into arrays that can be used for
+        % calculating the confidence intervals around the loess curves
+        numObjects = length(structSampleAnalysis);
+        numSamplesPerObject = size(structSampleAnalysis(1).NormDist,1);
+        numPixelsPerSample = size(structSampleAnalysis(1).SigInt,2);
+        arraySampleValues = zeros(numObjects*numSamplesPerObject, numPixelsPerSample, 'uint8');
+        arraySamplePositions = zeros(numObjects*numSamplesPerObject,1, 'double');
+        for iObject = 1:numObjects,
+            for iSample = 1:numSamplesPerObject,
+                arraySamplePositions(  (iObject-1)*numSamplesPerObject + iSample  ) = structSampleAnalysis(iObject).NormDist(iSample);
+                arraySampleValues(  (iObject-1)*numSamplesPerObject + iSample, :  ) = structSampleAnalysis(iObject).SigInt(iSample,:);
+            end 
+        end
+        clear structSampleAnalysis;
+        
+        %rescale these data along the normalised distance axis
+        arraySamplePositions = rescaleNormDist(arraySamplePositions, numSpatialBins, arrayNormDistRatio);
+        
+        %load the loess-smoothed data
+        arrayLoessData = loadLoessCurve(stringSpecificProcDataFolder, '.mat');
+        %extract into arrays for manipulating
+        arrayTempLoessXPos = arrayLoessData(1,:);
+        arrayTempLoess = arrayLoessData(2,:);
+        
+        %move through each tissue layer (the loess smoothing is
+        % discontinuous over tissue layer boundaries/performed within
+        % tissue layers)
+        for iTissueLayer = 1:numTissueLayers,
+            
+            %identify the minimum and maximum x-positions within the tissue
+            % layer
+            numStartX = double(arrayDivisionIndices(iTissueLayer)-1);
+            numEndX = double(arrayDivisionIndices(iTissueLayer+1)-1);
+            
+            %identify loess-smoothed and sampled data points within these
+            % bounds
+            if iTissueLayer < numTissueLayers,
+                arraySamplesInTLIndex = find( (arraySamplePositions >= numStartX) & (arraySamplePositions < numEndX) );
+                arrayLoessInTLIndex = find( (arrayTempLoessXPos >= numStartX) & (arrayTempLoessXPos < numEndX) );
+            elseif iTissueLayer == numTissueLayers,
+                arraySamplesInTLIndex = find( (arraySamplePositions >= numStartX) & (arraySamplePositions <= numEndX) );
+                arrayLoessInTLIndex = find( (arrayTempLoessXPos >= numStartX) & (arrayTempLoessXPos <= numEndX) );
+            end
+            
+            %extract just the data points within the tissue layer, and 
+            % ensure that they arecontiguous along the normalised-distance
+            % co-ordinate
+            arraySamplePositionsInTL = arraySamplePositions(arraySamplesInTLIndex);
+            [ arraySortedXPos, arrayIndexSortedXPos ] = sort(arraySamplePositionsInTL);
+                        
+            %extract just the loess-curve points within the tissue layer
+            arrayLoessinTL = arrayTempLoess(arrayLoessInTLIndex);
+            arrayLoessinTLXPos = arrayTempLoessXPos(arrayLoessInTLIndex);
+            
+            %specify the size of the array within the "output" cell array
+            arrayLoessCIBounds{iPatient, numNode, iTissueLayer} = zeros(length(arrayLoessinTLXPos),2,'double');
+            arrayLoessCIXPos{iPatient, numNode, iTissueLayer} = zeros(length(arrayLoessinTLXPos),1,'double');
+        
+            numClosestPoints = int32(double(length(arraySamplesInTLIndex))*numLoessWindowSize);
+            
+            %move through each individual x-point
+            for iXPos = 1:length(arrayLoessInTLIndex),
+
+                %extract the spatial position
+                numXPos = arrayLoessinTLXPos(iXPos);
+                arrayLoessCIXPos{iPatient, numNode, iTissueLayer}(iXPos) = numXPos;
+                
+                %identify index values
+                numLoessVal = arrayLoessinTL(iXPos);
+
+                %find the points closest to this x-position
+                arrayXPosDiff = arraySortedXPos - numXPos;
+                arrayXPosAbsDiff = abs(arrayXPosDiff);
+                [ arraySortedXPosAbsDiff, arrayIndexSortedXPosAbsDiff ] = sort(arrayXPosAbsDiff);
+                
+                %create a pointer array for the 'closest points'
+                arrayTempPointer = arrayIndexSortedXPos(arrayIndexSortedXPosAbsDiff(1:numClosestPoints));
+                arrayTruePointer = arraySamplesInTLIndex(arrayTempPointer);
+                
+                %extract just these 'closest points' and calculate the
+                % residual from the loess point
+                arrayLocalSampleValues = arraySampleValues(arrayTruePointer,:);
+                arrayLocalSampleDiff = double(arrayLocalSampleValues(:)) - numLoessVal;
+                
+                %if there are data points above/below the loess curve
+                arrayAboveLoessIndex = find(arrayLocalSampleDiff > 0);
+                arrayBelowLoessIndex = find(arrayLocalSampleDiff < 0);
+                
+                %determine the confidence interval "above" the loess curve
+                if ~isempty(arrayAboveLoessIndex),
+                    [arrayTempFreq, arrayTempInt] = ecdf(arrayLocalSampleDiff(arrayAboveLoessIndex));
+                    arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,1) = interp1(arrayTempFreq,arrayTempInt, numUniDirConfInt);
+                else
+                    arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,1) = NaN;
+                end
+                
+                %determine the confidence interval "below" the loess curve
+                if ~isempty(arrayBelowLoessIndex),
+                    [arrayTempFreq, arrayTempInt] = ecdf(arrayLocalSampleDiff(arrayBelowLoessIndex));
+                    arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,2) = interp1(arrayTempFreq,arrayTempInt, (1-numUniDirConfInt));
+                else
+                    arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,2) = NaN;
+                end
+                
+            end
+
+        end
+ 
+    end
+    
+end
 
 %move through all of the output proteins
 for iOutputProtein = 1:numOutputProteins,
@@ -409,12 +541,14 @@ for iOutputProtein = 1:numOutputProteins,
     %determine output parameters for this protein
     numLocalisationsForProtein = length(find(arrayGroupedNodes(iOutputProtein,:)));
     
+    
+
+    
     %load the cytoplasmic sampled data 
     stringRepImageDataFolder = [ strProcDataFolder arrayOutputProtFolders{iOutputProtein} strFolderSep 'Pat_' num2str(arrayPatientToDisplay(iOutputProtein)) strFolderSep ];
     stringRepImageCytoDataFolder = [ stringRepImageDataFolder 'C' strFolderSep ];
     
-    
-    
+        
     structSampleLocData = loadSampLocs(stringRepImageCytoDataFolder, '.mat');
 
     arrayAllSliceZPositions = zeros(length(structSampleLocData),1,'uint8');
