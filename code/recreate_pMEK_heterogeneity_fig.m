@@ -24,7 +24,13 @@
 %   Systems Biology Laboratory:
 %       joseph.cursons@unimelb.edu.au
 %
-% Last Updated: 03/09/15
+% Note that if you are using a UNIX system, alpha transparency and lighting
+%  have been disabled, as this can crash the Virtual Reference Environment
+%  (due to OpenGL conflicts). If you are using UNIX without a VRE and would
+%  like to produce shinier surfaces, you will need to modify the
+%  conditional loops around lines 456-466 and 500-510.
+%
+% Last Updated: 03/11/15
 %
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Input Parameters
@@ -89,12 +95,20 @@ addpath(genpath(strCurrDir));
 %manipulate the file path to determine the appropriate folders
 arrayCurrDirFoldSepPos = strfind(strCurrDir, strFoldSep);
 
-strBaseDir = strCurrDir(1:arrayCurrDirFoldSepPos(end-1));
+if arrayCurrDirFoldSepPos(end) == length(strCurrDir),
+    %there is a backslash at the end
+    strBaseDir = strCurrDir(1:(arrayCurrDirFoldSepPos(end-1)));
+else
+    strBaseDir = strCurrDir(1:(arrayCurrDirFoldSepPos(end)));
+end
 
-stringImageDataPath = [ strBaseDir strFoldSep 'image' strFoldSep strTarget strFoldSep 'Pat_' num2str(numPatient) strFoldSep 'image_data' strFoldSep ];
+%set the relative image data path
+stringImageDataPath = [ strBaseDir 'image' strFoldSep strTarget strFoldSep 'Pat_' num2str(numPatient) strFoldSep 'image_data' strFoldSep ];
 
-stringProcessedDataPath = [ strBaseDir strFoldSep 'processed' strFoldSep strTarget strFoldSep 'Pat_' num2str(numPatient) strFoldSep  ];
+%set the relative processed data path
+stringProcessedDataPath = [ strBaseDir 'processed' strFoldSep strTarget strFoldSep 'Pat_' num2str(numPatient) strFoldSep  ];
 
+%and just output to the root directory
 stringOutputDir = strBaseDir;
 
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
@@ -439,10 +453,17 @@ ylabel('Nuc. Sig. Int.');
 subplot(10,2,13:16);
 hold on;
 %plot the cytoplasmic data spatial histograms
-surf(arrayCytoHistSurf, ...
-    'FaceColor','interp',  'EdgeColor','none',  'FaceAlpha','interp',...
-    'AlphaDataMapping','scaled',  'AlphaData',arrayCytoHistSurfAlpha, ...
-    'FaceLighting','phong', 'AmbientStrength',0.8);
+if isunix,
+    %don't use alpha data or lighting, because this can crash the virtual
+    % box (due to OpenGL rendering issues)
+    surf(arrayCytoHistSurf, 'FaceColor','interp',  'EdgeColor','none');
+else
+    %plot the surface using alpha transparency
+    surf(arrayCytoHistSurf, ...
+        'FaceColor','interp',  'EdgeColor','none',  'FaceAlpha','interp',...
+        'AlphaDataMapping','scaled',  'AlphaData',arrayCytoHistSurfAlpha, ...
+        'FaceLighting','phong', 'AmbientStrength',0.8);
+end
 %format the plot
 axis([0, size(arrayCytoHistSurf,2), 0, size(arrayCytoHistSurf,1), 0, max(arrayCytoHistSurf(:))*1.1]);
 view([15 64]);
@@ -476,10 +497,17 @@ arrayCytoPDFSurfPlotPos = get(gca, 'Position');
 subplot(10,2,17:20);
 hold on;
 %plot the nuclear data spatial histograms
-surf(arrayNucHistSurf, ...
-    'FaceColor','interp',  'EdgeColor','none',  'FaceAlpha','interp',...
-    'AlphaDataMapping','scaled',  'AlphaData',arrayNucHistSurfAlpha, ...
-    'FaceLighting','phong', 'AmbientStrength',0.8);
+if isunix,
+    %don't use alpha data or lighting, because this can crash the virtual
+    % box (due to OpenGL rendering issues)
+    surf(arrayNucHistSurf, 'FaceColor','interp',  'EdgeColor','none');
+else
+    %plot the surface using alpha transparency
+    surf(arrayNucHistSurf, ...
+        'FaceColor','interp',  'EdgeColor','none',  'FaceAlpha','interp',...
+        'AlphaDataMapping','scaled',  'AlphaData',arrayNucHistSurfAlpha, ...
+        'FaceLighting','phong', 'AmbientStrength',0.8);
+end
 %format the plot
 axis([0, size(arrayNucHistSurf,2), 0, size(arrayNucHistSurf,1), 0, max(arrayNucHistSurf(:))*1.1]);
 view([15 64]);
