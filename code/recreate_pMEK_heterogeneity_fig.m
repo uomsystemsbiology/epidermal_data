@@ -376,13 +376,17 @@ end
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Produce the Output Figure
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+ 
 %create the figure and specify its size/position
 figOut = figure;
 set(figOut, 'Position', arrayOutputPlotScreenPos);
 set(figOut, 'PaperUnits', 'centimeters', 'PaperSize', arrayOutputPlotPaperSize, 'PaperPosition', arrayOutputPlotPaperPosition );
 
-%create the cytoplasmic ksdensity plots which span panels 1 & 3 of a 
-% 5*2 subplot array
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+% cytoplasmic data - probability density functions
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    
+%create the subplot spanning panels 1 & 3 of a 10*2 subplot array
 subplot(10,2,[1,3]);
 hold on;
 %for each output object
@@ -407,8 +411,11 @@ ylabel('Prob. Dens.');
 arrayCytoPDFPlotPos = get(gca, 'Position');
 set(gca, 'Position', (arrayCytoPDFPlotPos + [ 0.00 0.05 0.00 0.00 ]));
 
-%create the cytoplasmic ksdensity plots which span panels 2 & 4 of a 
-% 5*2 subplot array
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+% nuclear data - probability density functions
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+%create the subplot spanning panels 2 & 4 of a 10*2 subplot array
 subplot(10,2,[2,4]);
 hold on;
 %for each output object
@@ -433,30 +440,41 @@ ylabel('Prob. Dens.');
 arrayNucPDFPlotPos = get(gca, 'Position');
 set(gca, 'Position', (arrayNucPDFPlotPos + [ 0.00 0.05 0.00 0.00 ]));
 
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+% cytoplasmic data - violin plots
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-%create the cytoplasmic violin plots which span panels 5-8 of a 
-% 5*2 subplot array
+%create the subplot spanning panels 5-8 of a 10*2 subplot array
 subplot(10,2,5:8);
+
 %create the violin plots of the cytoplasmic data
 [arrayHandles,L,MX,MED,bw]=violin(arrayCytoForViolinPlot);
 %label the axes
 xlabel('cells ordered by d_{norm}');
 ylabel('Cyto. Sig. Int.');
 
-%create the nuclear violin plots which span panels 9-12 of a 5*2 subplot 
-% array
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+% nuclear data - violin plots
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+%create the subplot spanning panels 9-12 of a 10*2 subplot array
 subplot(10,2,9:12);
+
 %create the violin plots of the cytoplasmic data
 [arrayHandles,L,MX,MED,bw]=violin(arrayNucForViolinPlot);
+
 %label the axes
 xlabel('cells ordered by d_{norm}');
 ylabel('Nuc. Sig. Int.');
 
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+% cytoplasmic data - histogram surfaces
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-%create the cytoplasmic intensity histogram surface plots which span panels 
-% 13-16 of a 5*2 subplot array
+%create the subplot spanning panels 13-16 of a 10*2 subplot array
 subplot(10,2,13:16);
 hold on;
+
 %plot the cytoplasmic data spatial histograms
 if isdeployed,
     %don't use alpha data or lighting, because this can crash the virtual
@@ -469,38 +487,68 @@ else
         'AlphaDataMapping','scaled',  'AlphaData',arrayCytoHistSurfAlpha, ...
         'FaceLighting','phong', 'AmbientStrength',0.8);
 end
-%format the plot
+
+%format the plot min/max axes
 axis([0, size(arrayCytoHistSurf,2), 0, size(arrayCytoHistSurf,1), 0, max(arrayCytoHistSurf(:))*1.1]);
+
+%change the camera orientation for a better perspective
 view([15 64]);
+
+%modify the plot font settings
 set(gca, 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize);
-text(0.5*double(numSpatialBinsForHistSurf*2*numHistSurfSpacerMult), -0.3*numSpatHistSigBins, 'Normalized Distance (d_{norm})', 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize, 'HorizontalAlignment', 'center');
+
+%overlay the x-axis label (but using text to control the positioning)
+text( 0.5*double(numSpatialBinsForHistSurf*2*numHistSurfSpacerMult), -0.3*numSpatHistSigBins, 'Normalized Distance (d_{norm})', ...
+      'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize, 'HorizontalAlignment', 'center' );
+  
+%overlay the maximum spatial partition tick label
 for iSpatPart = 1:sum(arrayNormDistRatio),
     text(double(iSpatPart-0.5)*numSpatialBinsForHistSurf*2*numHistSurfSpacerMult, -2, 0, num2str(iSpatPart))
 end
+
+%specify the x-ticks
 set(gca, 'XTick', ((arrayLayerBoundaries*numSamplesPerSpatPartition*2*numHistSurfSpacerMult)+1));
 set(gca, 'XTickLabel', []);
-text(1.2*double(numSpatialBinsForHistSurf*2*numHistSurfSpacerMult), numSpatHistSigBins*0.4, {'signal';'intensity'}, 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize, 'HorizontalAlignment', 'center');
+
+%overlay the y-axis label (but using text to control the positioning)
+text( 1.2*double(numSpatialBinsForHistSurf*2*numHistSurfSpacerMult), numSpatHistSigBins*0.4, {'signal';'intensity'}, ...
+      'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize, 'HorizontalAlignment', 'center' );
+%specify the y-ticks  
 set(gca, 'YTick', [ 0 numMaxCytoNodeSignal ]);
 set(gca, 'YTickLabel', []);
-text(-0.5*double(arrayLayerBoundaries(2)*2*numHistSurfSpacerMult), 0, 0, '0', 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize);
+
+%label the min values for the x- and y-axes
+text( -0.5*double(arrayLayerBoundaries(2)*2*numHistSurfSpacerMult), 0, 0, '0', ...
+      'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize );
+text( 1.03*double(numSpatialBinsForHistSurf*numHistSurfSpacerMult*2), 0.5, 0, '0', ...
+      'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize );
+
+%label the max value for the x-axis
 text(1.03*double(numSpatialBinsForHistSurf*numHistSurfSpacerMult*2), numSpatHistSigBins*2, 0, num2str(numMaxCytoNodeSignal-1), 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize);
-text(1.03*double(numSpatialBinsForHistSurf*numHistSurfSpacerMult*2), 0.5, 0, '0', 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize);
+
+%specify the z-axis label
 text(-0.25*double(numSpatialBinsForHistSurf*numHistSurfSpacerMult),0, 0.5*double(max(arrayCytoHistSurf(:))), 'freq.', 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize);
-set(gca, 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize);
+
+%label the z-axis tick marks
 numRoundedZTick = double(int16(max(arrayCytoHistSurf(:))/100)*100);
 set(gca, 'ZTick', [0 numRoundedZTick] );
 set(gca, 'ZTickLabel', [] );
 text(-0.17*double(numSpatialBinsForHistSurf*numHistSurfSpacerMult), -0.01*numSpatHistSigBins, numRoundedZTick, num2str(numRoundedZTick), 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize, 'VerticalAlignment', 'middle');
 
 hold off;
+
+%extract the position of this surface plot for later indexing
 handleCytoPDFSurfPlot = gca;
 arrayCytoPDFSurfPlotPos = get(gca, 'Position');
 
 
-%create the nuclear intensity histogram surface plots which span panels 
-% 17-20 of a 5*2 subplot array
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+% nuclear data - histogram surfaces
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+%create the subplot spanning panels 17-20 of a 10*2 subplot array
 subplot(10,2,17:20);
 hold on;
+
 %plot the nuclear data spatial histograms
 if isdeployed,
     %don't use alpha data or lighting, because this can crash the virtual
@@ -513,30 +561,59 @@ else
         'AlphaDataMapping','scaled',  'AlphaData',arrayNucHistSurfAlpha, ...
         'FaceLighting','phong', 'AmbientStrength',0.8);
 end
+
 %format the plot
 axis([0, size(arrayNucHistSurf,2), 0, size(arrayNucHistSurf,1), 0, max(arrayNucHistSurf(:))*1.1]);
+
+%change the camera orientation for a better perspective
 view([15 64]);
+
+%modify the plot font settings
 set(gca, 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize);
-text(0.5*double(numSpatialBinsForHistSurf*2*numHistSurfSpacerMult), -0.3*numSpatHistSigBins, 'Normalized Distance (d_{norm})', 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize, 'HorizontalAlignment', 'center');
+
+%overlay the x-axis label (but using text to control the positioning)
+text( 0.5*double(numSpatialBinsForHistSurf*2*numHistSurfSpacerMult), -0.3*numSpatHistSigBins, 'Normalized Distance (d_{norm})', ...
+      'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize, 'HorizontalAlignment', 'center' );
+  
+%overlay the maximum spatial partition tick label
 for iSpatPart = 1:sum(arrayNormDistRatio),
     text(double(iSpatPart-0.5)*numSpatialBinsForHistSurf*2*numHistSurfSpacerMult, -2, 0, num2str(iSpatPart))
 end
+
+%specify the x-ticks
 set(gca, 'XTick', ((arrayLayerBoundaries*numSamplesPerSpatPartition*2*numHistSurfSpacerMult)+1));
 set(gca, 'XTickLabel', []);
-text(1.2*double(numSpatialBinsForHistSurf*2*numHistSurfSpacerMult), numSpatHistSigBins*0.4, {'signal';'intensity'}, 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize, 'HorizontalAlignment', 'center');
+
+%overlay the y-axis label (but using text to control the positioning)
+text( 1.2*double(numSpatialBinsForHistSurf*2*numHistSurfSpacerMult), numSpatHistSigBins*0.4, {'signal';'intensity'}, ...
+      'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize, 'HorizontalAlignment', 'center' );
+%specify the y-ticks  
 set(gca, 'YTick', [ 0 numMaxNucNodeSignal ]);
 set(gca, 'YTickLabel', []);
-text(-0.5*double(arrayLayerBoundaries(2)*2*numHistSurfSpacerMult), 0, 0, '0', 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize);
-text(1.03*double(numSpatialBinsForHistSurf*numHistSurfSpacerMult*2), numSpatHistSigBins*2, 0, num2str(numMaxNucNodeSignal-1), 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize);
-text(1.03*double(numSpatialBinsForHistSurf*numHistSurfSpacerMult*2), 0.5, 0, '0', 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize);
-text(-0.25*double(numSpatialBinsForHistSurf*numHistSurfSpacerMult),0, 0.5*double(max(arrayNucHistSurf(:))), 'freq.', 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize);
-set(gca, 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize);
+
+%label the min values for the x- and y-axes
+text( -0.5*double(arrayLayerBoundaries(2)*2*numHistSurfSpacerMult), 0, 0, '0', ...
+      'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize );
+text( 1.03*double(numSpatialBinsForHistSurf*numHistSurfSpacerMult*2), 0.5, 0, '0', ...
+      'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize );
+
+%label the max value for the x-axis
+text( 1.03*double(numSpatialBinsForHistSurf*numHistSurfSpacerMult*2), numSpatHistSigBins*2, 0, num2str(numMaxNucNodeSignal-1), ...
+     'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize );
+text( -0.25*double(numSpatialBinsForHistSurf*numHistSurfSpacerMult),0, 0.5*double(max(arrayNucHistSurf(:))), 'freq.', ...
+      'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize );
+
+%specify the z-axis label
+text( -0.17*double(numSpatialBinsForHistSurf*numHistSurfSpacerMult), -0.01*numSpatHistSigBins, numRoundedZTick, num2str(numRoundedZTick), ...
+      'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize, 'VerticalAlignment', 'middle' );
+
+%label the z-axis tick marks
 numRoundedZTick = double(int16(max(arrayNucHistSurf(:))/100)*100);
 set(gca, 'ZTick', [0 numRoundedZTick] );
 set(gca, 'ZTickLabel', [] );
-text(-0.17*double(numSpatialBinsForHistSurf*numHistSurfSpacerMult), -0.01*numSpatHistSigBins, numRoundedZTick, num2str(numRoundedZTick), 'FontName', 'Times New Roman', 'FontSize',  numPlotFontSize, 'VerticalAlignment', 'middle');
 
-%move the nuclear plot slightly to improve appearance
+%move the nuclear histogram surface plot down a little bit to improve
+% appearance
 arrayNucPDFSurfPlotPos = get(gca, 'Position');
 set(gca, 'Position', (arrayNucPDFSurfPlotPos + [ 0.00 -0.05 0.00 0.00 ]));
 
