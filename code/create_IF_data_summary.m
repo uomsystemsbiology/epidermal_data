@@ -985,7 +985,7 @@ for iOutputProtein = 1:numOutputProteins,
             arraySubAreaInterpBelowZeroObsIndices = find(imageSubAreaInterp < 0.01);
             imageSubAreaInterp(arraySubAreaInterpBelowZeroObsIndices) = 0.01;
 
-            if isunix,
+            if isdeployed,
                 %don't use alpha data or lighting, because this can crash 
                 % the virtual box (due to OpenGL rendering issues)
                 surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
@@ -1015,7 +1015,7 @@ for iOutputProtein = 1:numOutputProteins,
         elseif structOtherImageOne(iOutputProtein).dimensionality == 3,
             %volume plot
             hold on;
-            if isunix,
+            if isdeployed,
                 %don't use alpha data or lighting, because this can crash 
                 % the virtual box (due to OpenGL rendering issues)
                 plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
@@ -1091,7 +1091,7 @@ for iOutputProtein = 1:numOutputProteins,
                                          'cubic');
             arraySubAreaInterpBelowZeroObsIndices = find(imageSubAreaInterp < 0.01);
             imageSubAreaInterp(arraySubAreaInterpBelowZeroObsIndices) = 0.01;
-            if isunix,
+            if isdeployed,
                 %don't use alpha data or lighting, because this can crash 
                 % the virtual box (due to OpenGL rendering issues)
                 surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
@@ -1121,7 +1121,7 @@ for iOutputProtein = 1:numOutputProteins,
         elseif structOtherImageOne(iOutputProtein).dimensionality == 3,
             %volume plot
             hold on;
-            if isunix,
+            if isdeployed,
                 %don't use alpha data or lighting, because this can crash 
                 % the virtual box (due to OpenGL rendering issues)
                 plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
@@ -1197,7 +1197,7 @@ for iOutputProtein = 1:numOutputProteins,
             arraySubAreaInterpBelowZeroObsIndices = find(imageSubAreaInterp < 0.01);
             imageSubAreaInterp(arraySubAreaInterpBelowZeroObsIndices) = 0.01;
             
-            if isunix,
+            if isdeployed,
                 %don't use alpha data or lighting, because this can crash 
                 % the virtual box (due to OpenGL rendering issues)
                 surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
@@ -1231,7 +1231,7 @@ for iOutputProtein = 1:numOutputProteins,
             %volume plot
             hold on;
             
-            if isunix,
+            if isdeployed,
                 %don't use alpha data or lighting, because this can crash 
                 % the virtual box (due to OpenGL rendering issues)
                 plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
@@ -1305,7 +1305,7 @@ for iOutputProtein = 1:numOutputProteins,
                                          'cubic');
             arraySubAreaInterpBelowZeroObsIndices = find(imageSubAreaInterp < 0.01);
             imageSubAreaInterp(arraySubAreaInterpBelowZeroObsIndices) = 0.01;
-            if isunix,
+            if isdeployed,
                 %don't use alpha data or lighting, because this can crash 
                 % the virtual box (due to OpenGL rendering issues)
                 surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
@@ -1337,7 +1337,7 @@ for iOutputProtein = 1:numOutputProteins,
         elseif structOtherImageTwo(iOutputProtein).dimensionality == 3,
             %volume plot
             hold on;
-            if isunix,
+            if isdeployed,
                 %don't use alpha data or lighting, because this can crash 
                 % the virtual box (due to OpenGL rendering issues)
                 plotPatch1 = patch(structOtherImageTwo(iOutputProtein).fv1, ... 
@@ -1413,7 +1413,7 @@ for iOutputProtein = 1:numOutputProteins,
                                          'cubic');
             arraySubAreaInterpBelowZeroObsIndices = find(imageSubAreaInterp < 0.01);
             imageSubAreaInterp(arraySubAreaInterpBelowZeroObsIndices) = 0.01;
-            if isunix,
+            if isdeployed,
                 %don't use alpha data or lighting, because this can crash 
                 % the virtual box (due to OpenGL rendering issues)
                 surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
@@ -1445,7 +1445,7 @@ for iOutputProtein = 1:numOutputProteins,
         elseif structOtherImageOne(iOutputProtein).dimensionality == 3,
             %volume plot
             hold on;
-            if isunix,
+            if isdeployed,
                 %don't use alpha data or lighting, because this can crash 
                 % the virtual box (due to OpenGL rendering issues)
                 plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
@@ -1520,7 +1520,7 @@ for iOutputProtein = 1:numOutputProteins,
             arraySubAreaInterpBelowZeroObsIndices = find(imageSubAreaInterp < 0.01);
             imageSubAreaInterp(arraySubAreaInterpBelowZeroObsIndices) = 0.01;
 
-            if isunix,
+            if isdeployed,
                 %don't use alpha data or lighting, because this can crash 
                 % the virtual box (due to OpenGL rendering issues)
                 surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
@@ -1550,7 +1550,7 @@ for iOutputProtein = 1:numOutputProteins,
         elseif structOtherImageTwo(iOutputProtein).dimensionality == 3,
             %volume plot
             hold on;
-            if isunix,
+            if isdeployed,
                 %don't use alpha data or lighting, because this can crash 
                 % the virtual box (due to OpenGL rendering issues)
                 plotPatch1 = patch(structOtherImageTwo(iOutputProtein).fv1, ... 

@@ -453,7 +453,7 @@ ylabel('Nuc. Sig. Int.');
 subplot(10,2,13:16);
 hold on;
 %plot the cytoplasmic data spatial histograms
-if isunix,
+if isdeployed,
     %don't use alpha data or lighting, because this can crash the virtual
     % box (due to OpenGL rendering issues)
     surf(arrayCytoHistSurf, 'FaceColor','interp',  'EdgeColor','none');
@@ -497,7 +497,7 @@ arrayCytoPDFSurfPlotPos = get(gca, 'Position');
 subplot(10,2,17:20);
 hold on;
 %plot the nuclear data spatial histograms
-if isunix,
+if isdeployed,
     %don't use alpha data or lighting, because this can crash the virtual
     % box (due to OpenGL rendering issues)
     surf(arrayNucHistSurf, 'FaceColor','interp',  'EdgeColor','none');
