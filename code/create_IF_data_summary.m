@@ -1,11 +1,18 @@
 %% create_IF_data_summary.m
-% This MATLAB script reproduces 
-
-%from the GigaScience Data Note:
+% This MATLAB script reproduces the summary figures shown in Additional
+%  File 4 of the GigaScience Data Note:
 %   Cursons et al. (2015). Spatially-transformed fluorescence image data 
 %    for ERK-MAPK and selected proteins within human epidermis.
 %    GigaScience. Submitted Sept 2015.
-%    doi: not-yet-known
+%   http://dx.doi.org/doi-not-yet-known
+%
+% It is designed to be executed upon the corresponding epidermal 
+%  fluorescence data published with this Data Note:
+%   Cursons, J; Angel, C, E; Hurley, D, G; Print, C, G; Dunbar, P; Jacobs, 
+%    M, D; Crampin, E, J (2015): Supporting data for "Spatially-transformed
+%    fluorescence image data for ERK-MAPK and selected proteins within 
+%    human epidermis". GigaScience Database.
+%   http://dx.doi.org/10.5524/100168 
 %
 % A number of functions are used by this script, some of which have
 %  dependencies upon MATLAB Toolboxes:
@@ -21,7 +28,9 @@
 %           http://www.mathworks.com/matlabcentral/profile/authors/869576-ohad-gal
 %
 % Please note that this script is a behemoth and could be (may be in the
-%  future) written using a number of functions.
+%  future) written using a number of functions; however there are a number
+%  of complexities associated with passing figure handles in/out of
+%  functions.
 % Also note that these scripts were developed when I was using the data for
 %  network inference methods so I regularly refer to a 'node' which is
 %  shorthand for a protein within a specific-subcellular localisation
@@ -30,7 +39,7 @@
 %   Systems Biology Laboratory:
 %       joseph.cursons@unimelb.edu.au
 %
-% Last Updated: 03/11/15
+% Last Updated: 09/11/15
 %
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Input Parameters - User Defined Settings
@@ -367,7 +376,9 @@ strCurrDir = cd;
 if ~isdeployed
     addpath(genpath(strCurrDir));
 else
-    addpath(genpath([ctfroot '/code']))
+    %if the machine is deployed, include the ctfroot (must be defined when
+    % running the matlab compiler) in the file path
+    addpath(genpath([ctfroot strFolderSep 'code']))
 end
 
 
@@ -389,7 +400,8 @@ strProcDataFolder = [ strBaseDir 'processed' strFolderSep ];
 stringOutputDataFolder = strBaseDir;
 
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
-%% Perform Pre-Processing
+%% Perform Pre-Processing - Extract Confidence Intervals for Residuals
+%   From the Loess Curve 
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 
 %extract the full spatial discretisation arrays
@@ -401,7 +413,8 @@ arrayLayerBoundaries = arrayDivisionIndices-1;
 arrayLoessCIBounds = cell(numPatients, numNodesTotal, numTissueLayers);
 arrayLoessCIXPos = cell(numPatients, numNodesTotal, numTissueLayers);
 
-%move through all specified output nodes
+%move through all specified output nodes to calculate the confidence
+% intervals around the loess-smoothed curve
 for iNode = 1:numOutputNodes,
     
     %determine the target protein/localisation
@@ -431,24 +444,32 @@ for iNode = 1:numOutputNodes,
 
         %extract the signal intensity data into arrays that can be used for
         % calculating the confidence intervals around the loess curves
+        %NB: to ensure backwards compatibility with older processed data
+        % sets, this extracts 'objects' (grouped samples) and then attempts
+        % to unpack them; in the new/latest processed data files each
+        % object only contains one sample
         numObjects = length(structSampleAnalysis);
         numSamplesPerObject = size(structSampleAnalysis(1).NormDist,1);
         numPixelsPerSample = size(structSampleAnalysis(1).SigInt,2);
+        %dependent upon the extracted feature information, create a
+        % corresponding output array for sample positions and signal
+        % intensity values
         arraySampleValues = zeros(numObjects*numSamplesPerObject, numPixelsPerSample, 'uint8');
         arraySamplePositions = zeros(numObjects*numSamplesPerObject,1, 'double');
+        %populate these arrays
         for iObject = 1:numObjects,
             for iSample = 1:numSamplesPerObject,
                 arraySamplePositions(  (iObject-1)*numSamplesPerObject + iSample  ) = structSampleAnalysis(iObject).NormDist(iSample);
                 arraySampleValues(  (iObject-1)*numSamplesPerObject + iSample, :  ) = structSampleAnalysis(iObject).SigInt(iSample,:);
             end 
         end
-        clear structSampleAnalysis;
         
         %rescale these data along the normalised distance axis
         arraySamplePositions = rescaleNormDist(arraySamplePositions, numSpatialBins, arrayNormDistRatio);
         
         %load the loess-smoothed data
         arrayLoessData = loadLoessCurve(stringSpecificProcDataFolder, '.mat');
+        
         %extract into arrays for manipulating
         arrayTempLoessXPos = arrayLoessData(1,:);
         arrayTempLoess = arrayLoessData(2,:);
@@ -474,7 +495,7 @@ for iNode = 1:numOutputNodes,
             end
             
             %extract just the data points within the tissue layer, and 
-            % ensure that they arecontiguous along the normalised-distance
+            % ensure that they are contiguous along the normalised distance
             % co-ordinate
             arraySamplePositionsInTL = arraySamplePositions(arraySamplesInTLIndex);
             [ arraySortedXPos, arrayIndexSortedXPos ] = sort(arraySamplePositionsInTL);
@@ -541,70 +562,73 @@ for iNode = 1:numOutputNodes,
     
 end
 
-%move through all of the output proteins
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+%% Create the Output Figures
+ %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+
+%move through all of the output proteins - one figure per target
 for iOutputProtein = 1:numOutputProteins,
     
     %determine output parameters for this protein
     numLocalisationsForProtein = length(find(arrayGroupedNodes(iOutputProtein,:)));
-    
-    
-
-    
-    %load the cytoplasmic sampled data 
+   
+    %determine the folder path for the cytoplasmic sampled data 
     stringRepImageDataFolder = [ strProcDataFolder arrayOutputProtFolders{iOutputProtein} strFolderSep 'Pat_' num2str(arrayPatientToDisplay(iOutputProtein)) strFolderSep ];
     stringRepImageCytoDataFolder = [ stringRepImageDataFolder 'C' strFolderSep ];
     
-        
+    %extract the cytoplasmic sampled data    
     structSampleLocData = loadSampLocs(stringRepImageCytoDataFolder, '.mat');
 
+    %examine the sample data locations to determine the z-positions at 
+    % which samples have been collected
     arrayAllSliceZPositions = zeros(length(structSampleLocData),1,'uint8');
     for iSampleGroup = 1:length(structSampleLocData),
         arrayAllSliceZPositions(iSampleGroup) = structSampleLocData(iSampleGroup).ZPosition;
     end
+    %make this list unique
     arrayZSlicesSampled = unique(arrayAllSliceZPositions);
+        
+    %determine the folder path for the representative image
+    stringSpecificImageDataFolder = [strImgDataFolder arrayOutputProtFolders{iOutputProtein} strFolderSep 'Pat_' num2str(arrayPatientToDisplay(iOutputProtein)) strFolderSep 'image_data' strFolderSep ];   
     
-    
-    %load the representative image
-    stringSpecificImageDataFolder = [strImgDataFolder arrayOutputProtFolders{iOutputProtein} strFolderSep 'Pat_' num2str(arrayPatientToDisplay(iOutputProtein)) strFolderSep 'image_data' strFolderSep ];    
+    %examine contents of the folder containing the representative image
     arrayDirContents = dir(stringSpecificImageDataFolder);
+    %and identify those files containing the string "_Series"; identifying
+    % them as components of a fluorescence z-stack
     arraySeriesImageFlag = false(length(arrayDirContents), 1);
     for iFile = 1:length(arrayDirContents),
         if ~isempty(strfind(arrayDirContents(iFile).name, '_Series')),
             arraySeriesImageFlag(iFile) = true;
         end
     end
+    %identify all images belonging to this series/stack
     numFirstSeriesImageIndex = find(arraySeriesImageFlag, 1, 'first');
+    %and identify the full file name for the first image in the stack
     stringImageSeriesName = arrayDirContents(numFirstSeriesImageIndex).name;
+    
+    %determine the file path for the series image
     stringInputImagePath = [stringSpecificImageDataFolder stringImageSeriesName];
     
-    
-    stringProteinSymbol = arrayProteinLateXString{iOutputProtein};
-    
+    %examine the structure of the string specifying the series image, and
+    % determine the characters that correspond to the z-position
     numImagePathZPosition = strfind(stringInputImagePath, '_z0');
-    if size(arrayRepImageZ{iOutputProtein},2) == 1,
-        %load the single image
-        stringOutputZ = num2str(arrayRepImageZ{iOutputProtein}, '%02u');
-        stringInputImagePath(numImagePathZPosition+3:numImagePathZPosition+4) = stringOutputZ;
-        imageRep = imread(stringInputImagePath);
-    elseif size(arrayRepImageZ{iOutputProtein},2) > 1,
-        %load multiple images and average
-        numImagesToLoad = size(arrayRepImageZ{iOutputProtein},2);
-        arrayInputImages = zeros(numImageSizePixels,numImageSizePixels,numImagesToLoad,'uint8');
-        for iImage = 1:numImagesToLoad,
-            stringOutputZ = num2str(arrayRepImageZ{iOutputProtein}(iImage), '%02u');
-            stringInputImagePath(numImagePathZPosition+3:numImagePathZPosition+4) = stringOutputZ;
-            arrayInputImages(:,:,iImage) = imread(stringInputImagePath);
-        end
-        imageRep = uint8(mean(double(arrayInputImages),3));
-    else
-        disp('error with loading the representative image');
-    end
     
+    %load the image
+    stringOutputZ = num2str(arrayRepImageZ{iOutputProtein}, '%02u');
+    stringInputImagePath(numImagePathZPosition+3:numImagePathZPosition+4) = stringOutputZ;
+    imageRep = imread(stringInputImagePath);
+       
     
-    %perform the image rotation
+    %rotate the representative image by the angle specified at the
+    % beginning of this script
+    %NB: this takes the input image as an array of doubles
     [ imageRepRot, ~ ] = rotate_image( arrayRepImageRotate(iOutputProtein), double(imageRep), [1; 1] );
+    
+    %convert back to an 8-bit unsigned integer
     imageRepRot = uint8(imageRepRot);
-    %rescale the brightness for display
+    
+    %rescale the brightness to improve printed display and save as a new
+    % image file (i.e. don't modify the original image data)
     numMinBrightnessThresh = 5;
     numMaxBrightnessScaleCoefficient = 1;
     numNonLinearTransCoefficient = 0.8;
@@ -620,7 +644,6 @@ for iOutputProtein = 1:numOutputProteins,
     numScaleBarVertStart = uint16(numScaleBarVertStop - numFractScaleBarWidth*size(imageRepBright,1));
     imageRepOut(numScaleBarVertStart:numScaleBarVertStop, numScaleBarHorStart:numScaleBarHorStop, :) = 255;
     
-    
     %load the cropped representative image
     [ imRepCropRot, ~ ] = rotate_image( arrayZoomedRepImageRotate(iOutputProtein), double(imageRepRot), [1; 1] );
     imRepCropRot = uint8( imRepCropRot );
@@ -628,6 +651,7 @@ for iOutputProtein = 1:numOutputProteins,
                                  arrayZoomedRepImageCrop(iOutputProtein,3):arrayZoomedRepImageCrop(iOutputProtein,4) );
     imRepCropRotBright = alterPixelIntensityForDisplay( imRepCropRot, numMinBrightnessThresh, numNonLinearTransCoefficient, numMaxBrightnessScaleCoefficient );
     imRepCropOut = cat( 3, imRepCropRotBright*0, imRepCropRotBright, imRepCropRotBright*0 );
+    
     %draw a scale bar at the bottom right
     numScaleBarHorStop = uint16(size(imRepCropRotBright,2)*(1-numFractionScaleBarSpacing));
     numScaleBarHorStart = uint16(numScaleBarHorStop - arrayNumPixelsIn10um(iOutputProtein));
@@ -635,7 +659,7 @@ for iOutputProtein = 1:numOutputProteins,
     numScaleBarVertStart = uint16(numScaleBarVertStop - numFractScaleBarWidth*size(imRepCropRotBright,1));
     imRepCropOut(numScaleBarVertStart:numScaleBarVertStop, numScaleBarHorStart:numScaleBarHorStop, :) = 255;
     
-    %load the 'other image'
+    %load the 'other image', as specified at the start of this script
     structOtherImageOne = struct('dimensionality', {}, 'arrayXCoOrds', {}, 'arrayYCoOrds', {}, 'arrayPixelInt', {}, 'fv1', {}, 'fv2', {}, 'fv3', {});
     structOtherImageTwo = struct('dimensionality', {}, 'arrayXCoOrds', {}, 'arrayYCoOrds', {}, 'arrayPixelInt', {}, 'fv1', {}, 'fv2', {}, 'fv3', {});
     
@@ -646,7 +670,7 @@ for iOutputProtein = 1:numOutputProteins,
             structOtherImageOne(iOutputProtein).dimensionality = 2;
             
             %imageSurf = imrotate(imageRepRot, arrayOtherImageRot(iOutputProtein, 1));
-            [imageSurf,JUNKarrayRefPoints] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageRepRot), [1; 1] );
+            [imageSurf,~] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageRepRot), [1; 1] );
             imageSurf = uint8(imageSurf);
             
             structOtherImageOne(iOutputProtein).arrayXCoOrds = [ arrayOtherImageCoOrds{iOutputProtein,1}(1):arrayOtherImageCoOrds{iOutputProtein,1}(2) ];
@@ -668,10 +692,10 @@ for iOutputProtein = 1:numOutputProteins,
             stringStackName(numChIndex:numChIndex+4) = '_ch0#';
             imageStackInput = loadImageStack( stringInputImagePath(1:numLastBSlashIndex), stringStackName, arrayImagesInStack(iOutputProtein), 0 );
             %rotate the image stack as required
-            [imageTempInputRot, JUNKarrayRefPoints] = rotate_image( (arrayRepImageRotate(iOutputProtein)+arrayOtherImageRot(iOutputProtein, 1)), double(imageStackInput(:,:,1)), [1; 1] );
+            [imageTempInputRot, ~] = rotate_image( (arrayRepImageRotate(iOutputProtein)+arrayOtherImageRot(iOutputProtein, 1)), double(imageStackInput(:,:,1)), [1; 1] );
             imageStackInputRot = zeros(size(imageTempInputRot,1),size(imageTempInputRot,2),'uint8');
             for iImage = 1:arrayImagesInStack(iOutputProtein)
-                [imageStackInputRot(:,:,iImage), JUNKarrayRefPoints] = rotate_image( (arrayRepImageRotate(iOutputProtein)+arrayOtherImageRot(iOutputProtein, 1)), double(imageStackInput(:,:,iImage)), [1; 1] );
+                [imageStackInputRot(:,:,iImage), ~] = rotate_image( (arrayRepImageRotate(iOutputProtein)+arrayOtherImageRot(iOutputProtein, 1)), double(imageStackInput(:,:,iImage)), [1; 1] );
             end
             imageStackSubVolume = imageStackInputRot(  arrayOtherImageCoOrds{iOutputProtein,1}(3):arrayOtherImageCoOrds{iOutputProtein,1}(4), ...
                                                        arrayOtherImageCoOrds{iOutputProtein,1}(1):arrayOtherImageCoOrds{iOutputProtein,1}(2), ...
