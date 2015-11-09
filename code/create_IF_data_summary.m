@@ -362,8 +362,14 @@ end
 %extract the current directory
 strCurrDir = cd;
 
-%add the function sub-folders to the MATLAB path
-addpath(genpath(strCurrDir));
+%the functions used by this script should be located in the /functions/
+% folder, so add this to the MATLAB file path
+if ~isdeployed
+    addpath(genpath(strCurrDir));
+else
+    addpath(genpath([ctfroot '/code']))
+end
+
 
 %manipulate the file path to determine the appropriate folders
 if arrayCurrDirFoldSepPos(end) == length(strCurrDir),

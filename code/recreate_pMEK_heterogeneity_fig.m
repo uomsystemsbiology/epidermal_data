@@ -90,7 +90,12 @@ strCurrDir = cd;
 
 %the functions used by this script should be located in the /functions/
 % folder, so add this to the MATLAB file path
-addpath(genpath(strCurrDir));
+if ~isdeployed
+    addpath(genpath(strCurrDir));
+else
+    addpath(genpath([ctfroot '/code']))
+end
+
 
 %manipulate the file path to determine the appropriate folders
 arrayCurrDirFoldSepPos = strfind(strCurrDir, strFoldSep);
