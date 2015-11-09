@@ -7,11 +7,12 @@ immunofluorescence data from human epidermis to be loaded and/or
 modified.
 
 
-The data for processing with these scripts are hosted at [GigaDB](http://gigadb.address/for/data "GigaDB")
+The data for processing with these scripts are hosted at [GigaDB](http://gigadb.address/for/data "GigaDB"):
+	* Cursons, J; Angel, C, E; Hurley, D, G; Print, C, G; Dunbar, P; Jacobs, M, D; Crampin, E, J (2015): Supporting data for "Spatially-transformed fluorescence image data for ERK-MAPK and selected proteins within human epidermis". GigaScience Database. http://dx.doi.org/10.5524/100168 
 
 
 A detailed description of these data are given within a corresponding GigaScience Data Note:
-	* Cursons, J. et al. (2015). Spatially-transformed fluorescence image data for ERK-MAPK and selected proteins within human epidermis. GigaScience. Submitted Sept 2015.
+	* Cursons, J. et al. (2015). Spatially-transformed fluorescence image data for ERK-MAPK and selected proteins within human epidermis. GigaScience. Accepted Nov 2015.
 	* doi: to-be-designated
 
 
@@ -25,4 +26,4 @@ For further details, please contact:
 	* Joe Cursons - joseph.cursons@unimelb.edu.au
 
 ------------------------------
-Last Modified: 03/06/15
+Last Modified: 09/11/15
