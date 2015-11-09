@@ -415,7 +415,10 @@ arrayLoessCIXPos = cell(numPatients, numNodesTotal, numTissueLayers);
 
 %move through all specified output nodes to calculate the confidence
 % intervals around the loess-smoothed curve
+disp(['calculating confidence intervals for residuals from the Loess curve..']);
 for iNode = 1:numOutputNodes,
+    
+    disp([char(9) '.. for localised target ' num2str(iNode) ' of ' num2str(numOutputNodes) ]);
     
     %determine the target protein/localisation
     numNode = arrayOutputNodeOrder(iNode);
@@ -560,6 +563,8 @@ for iNode = 1:numOutputNodes,
  
     end
     
+    disp([char(9) char(9) 'approx ' num2str((iNode/numOutputNodes)*100, '%03.1f') '% complete']);
+    
 end
 
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
@@ -567,7 +572,10 @@ end
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 
 %move through all of the output proteins - one figure per target
+disp(['creating output figures..']);
 for iOutputProtein = 1:numOutputProteins,
+    
+    disp([ char(9) '.. for ' arrayOutputProtFolders{iOutputProtein} '(Protein ' num2str(iOutputProtein) ' of ' num2str(numOutputProteins) ')' ]);
     
     %determine output parameters for this protein
     numLocalisationsForProtein = length(find(arrayGroupedNodes(iOutputProtein,:)));
