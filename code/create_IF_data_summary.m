@@ -383,6 +383,9 @@ end
 
 
 %manipulate the file path to determine the appropriate folders
+arrayCurrDirFoldSepPos = strfind(strCurrDir, strFolderSep);
+
+%manipulate the file path to determine the appropriate folders
 if arrayCurrDirFoldSepPos(end) == length(strCurrDir),
     %there is a backslash at the end
     strBaseDir = strCurrDir(1:(arrayCurrDirFoldSepPos(end-1)));
@@ -914,6 +917,7 @@ for iOutputProtein = 1:numOutputProteins,
         numZSampleForDNormEst = numZToSearch;
     end
     
+    %load the full set of tissue segmentation data
     [ CellImageStack, CellImageLayers, CellImageBasalLamina, CellImageBoundaryOne, CellImageBoundaryTwo, CellImageOuterBoundary ] = ...
         loadImageStackAsSparse3DCellArrays( numZSampleForDNormEst, stringSpecificImageDataFolder, stringRepImageDataFolder);
     arrayBorderLocations = struct('SmpCent', {}, 'ZPosition', {});
@@ -921,16 +925,17 @@ for iOutputProtein = 1:numOutputProteins,
     numXCoOrd2 = arrayOtherImageXCoOrd(3);
     numYCoOrd1 = arrayOtherImageYCoOrd(4);
     numYCoOrd2 = arrayOtherImageYCoOrd(3);
+    
+    %use rotate_image to determine the reference points for the
+    % representative image
     [ JUNKimageRepRotInv, arrayRefPoints ] = rotate_image( -arrayRepImageRotate(iOutputProtein), double(imageRepRot), [numXCoOrd1, numXCoOrd2; numYCoOrd1, numYCoOrd2] );
     arrayBorderLocations(1).SmpCent = [ arrayRefPoints(1,1) arrayRefPoints(2,1)  numZSampleForDNormEst ];
     arrayBorderLocations(2).SmpCent = [ arrayRefPoints(1,2) arrayRefPoints(2,2)  numZSampleForDNormEst ];
     arrayBorderLocations(1).ZPosition = numZSampleForDNormEst;
-    arrayBorderLocations(2).ZPosition = numZSampleForDNormEst;
-    arraySamplingKernel = [ 1 ];
+    arrayBorderLocations(2).ZPosition = numZSampleForDNormEst;    
+        
     
-    arrayOutSampleAnalysis = loadSampAnalysis(stringRepImageCytoDataFolder, '.mat');
-    
-    %size of the output figure
+    %determine the size of the output figure
     numFigHeight = (55+(50*numLocalisationsForProtein));
     if (iOutputProtein >= 7) && (iOutputProtein <= 10),
         %MEK, pMEK, ERK or pERK; plot the cyto:nuc signal ratio in the
@@ -989,7 +994,6 @@ for iOutputProtein = 1:numOutputProteins,
     line([arrayOtherImgOneOrigXCoOrd(4), arrayOtherImgOneOrigXCoOrd(1)], [arrayOtherImgOneOrigYCoOrd(4), arrayOtherImgOneOrigYCoOrd(1)], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', ':');
     
     
-    
     %display the zoomed representative image
     handleRepZoomedImage = subplot('Position', arrayZoomedRepImagePosition);
     image(imRepCropOut);
@@ -999,6 +1003,12 @@ for iOutputProtein = 1:numOutputProteins,
     numTextXPos = size(imRepCropOut,2)*0.9;
     numTextYPos = size(imRepCropOut,1)*0.13;
     text(numTextXPos, numTextYPos, arrayProteinLateXString{iOutputProtein}, 'Interpreter', 'latex', 'FontWeight', 'bold', 'HorizontalAlignment', 'right','FontSize',(numSubFigLabelFontSize*0.85),'Color','w');
+    
+    
+    
+    %load the sample analysis data
+    arrayOutSampleAnalysis = loadSampAnalysis(stringRepImageCytoDataFolder, '.mat');
+    
     
  % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % 
 %% Plot the 2D surface or 3D volume
@@ -1650,7 +1660,7 @@ for iOutputProtein = 1:numOutputProteins,
 
     
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
-%% Plot the lowess-smoothed curves
+%% Plot the loess-smoothed curves
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 
 %     for iLocalisation = 1:numLocalisationsForProtein,
