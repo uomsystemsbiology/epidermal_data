@@ -1890,13 +1890,18 @@ for iOutputProtein = 1:numOutputProteins,
     %plot the membrane localisation first (if it exists)
     if ~(arrayGroupedNodes(iOutputProtein,3) == 0),
 
+        %extract the 'node' number used for indexing the protein within a
+        % specific sub-cellular localisation
         numNode = arrayGroupedNodes(iOutputProtein,3);
 
         %load the data cloud for the representative image
         stringRepImageMembDataFolder = [ stringRepImageDataFolder 'M' strFolderSep ];
-
         structRepImageSampleData = loadSampAnalysis(stringRepImageMembDataFolder, '.mat');
 
+        %extract the sampled data into an array for subsequent plotting
+        %NB: this is written in a way to make it back compatible with some
+        % older data which used varying array sizes associated with objects
+        % (== groups of samples)
         numObjects = length(structRepImageSampleData);
         numSamplesPerObject = size(structRepImageSampleData(1).NormDist,1);
         numPixelsPerSample = size(structRepImageSampleData(1).SigInt,2);
@@ -1908,52 +1913,69 @@ for iOutputProtein = 1:numOutputProteins,
                 arraySampleValues(  (iObject-1)*numSamplesPerObject + iSample, :  ) = structRepImageSampleData(iObject).SigInt(iSample,:);
             end 
         end
+        %scale the normalised distance of the sampled data accordingly
         arraySamplePositions = rescaleNormDist(arraySamplePositions, numSpatialBins, arrayNormDistRatio);
+        
+        %calculate summary statistics for these data
         numRepImageSmpMean = mean(double(arraySampleValues(:)));
         numRepImageStDev = std(double(arraySampleValues(:)));
-
-
+        
+        %specify the subplot position
         handlePlotOne = subplot('Position', arrayPlot1Position);
 
-
-        %overlay the lowess smoothed curves and the data cloud for the representative image
+        %overlay loess smoothed curves and the data cloud for the
+        % representative image
         hold on;
-        plot(arraySamplePositions, (double(arraySampleValues) - numRepImageSmpMean)/numRepImageStDev, '.', 'Color', arrayDataCloudColor(arrayPatientToDisplay(iOutputProtein),:), 'MarkerSize', numPlotDataCloudMarkerSize);
-
-
+        %plot the mean/standard deviation normalised data cloud
+        plot( arraySamplePositions, (double(arraySampleValues) - numRepImageSmpMean)/numRepImageStDev, '.', ...
+              'Color', arrayDataCloudColor(arrayPatientToDisplay(iOutputProtein),:), 'MarkerSize', numPlotDataCloudMarkerSize );
+          
+        %plot the loess curve and corresponding confidence intervals for
+        % each patient
         for iPatient = 1:numPatients,
 
+            %extract the sample data and loess data for this patient
             stringMembDataFolder = [ strProcDataFolder arrayOutputProtFolders{iOutputProtein} strFolderSep 'Pat_' num2str(iPatient) strFolderSep 'M' strFolderSep ];
             structSampleData = loadSampAnalysis(stringMembDataFolder, '.mat');
             arrayLoessData = loadLoessCurve(stringMembDataFolder, '.mat');
 
+            %extract all of the sample data for this patient
             numDataObjects = length(structSampleData);
             numSamplesPerObject = length(structSampleData(1).SigInt);
             arraySampleData  = zeros(numDataObjects*numSamplesPerObject,1,'uint8');
             for iObj = 1:numDataObjects,
                 numBaseIndex = (iObj-1)*numSamplesPerObject;
-
                 arraySampleData((numBaseIndex+1):(numBaseIndex+iSample)) = structSampleData(iObj).SigInt(:);
-
             end
 
+            %calculate summary statistics for this patient's data
             numDataMean = mean(double(arraySampleData));
             numDataStDev = std(double(arraySampleData));
 
+            %plot the mean/standard deviation normalised loess curve
             plot(arrayLoessData(1,:), (arrayLoessData(2,:) - numDataMean)/numDataStDev, '.', 'Color', arrayPatientColors{iPatient}, 'MarkerSize', numPlotLowessMarkerSize);
+            
+            %extract the confidence interval for residuals around the loess
+            % curve
             arrayUpperLoessCI = [arrayLoessCIBounds{1, numNode, 1}(:,1); arrayLoessCIBounds{1, numNode, 2}(:,1); arrayLoessCIBounds{1, numNode, 3}(:,1)];
             arrayLowerLoessCI = [arrayLoessCIBounds{1, numNode, 1}(:,2); arrayLoessCIBounds{1, numNode, 2}(:,2); arrayLoessCIBounds{1, numNode, 3}(:,2)];
             arrayLoessCIXPosCombined = [arrayLoessCIXPos{1, numNode, 1}(:); arrayLoessCIXPos{1, numNode, 2}(:); arrayLoessCIXPos{1, numNode, 3}(:)];
 
+            %extract the x-postions and loess curve values into individual
+            % vectors for easier indexing
             arrayLoessX = arrayLoessData(1,:);
             arrayLoessVals = arrayLoessData(2,:);
 
-
+            %move through each tissue layer
             for iTissueLayer = 1:numTissueLayers,
 
+                %identify the range of x-values associated with this tissue
+                % layer
                 numTissueLayerMinX = double(arrayDivisionIndices(iTissueLayer))-1;
                 numTissueLayerMaxX = double(arrayDivisionIndices(iTissueLayer+1))-1;
 
+                %identify all loess-curve and CI x-positions within the
+                % extracted range
                 if iTissueLayer < numTissueLayers,
                     arrayIndexInTissueLayer = find( (arrayLoessX >= numTissueLayerMinX) & (arrayLoessX < numTissueLayerMaxX) );
                     arrayCIIndexInTissueLayer = find( (arrayLoessCIXPosCombined >= numTissueLayerMinX) & (arrayLoessCIXPosCombined < numTissueLayerMaxX) );
@@ -1964,17 +1986,18 @@ for iOutputProtein = 1:numOutputProteins,
                 arrayXinTissueLayer = arrayLoessX(arrayIndexInTissueLayer);
                 arrayCIXinTissueLayer = arrayLoessCIXPosCombined(arrayCIIndexInTissueLayer);
 
+                %identify the highest "first x-pos" and the lowest "last
+                % x-pos" between the loess curves and calculated CIs for
+                % specifying the interpolation range
                 numPlotMinX = max([arrayXinTissueLayer(1) arrayCIXinTissueLayer(1)]);
                 numPlotMaxX = min([arrayXinTissueLayer(end) arrayCIXinTissueLayer(end)]);
-
-
+                %interpolate over the extracted range
                 arrayXToPlot = linspace(numPlotMinX, numPlotMaxX,40);
-
                 arrayLoessToPlot = interp1(arrayXinTissueLayer, arrayLoessVals(arrayIndexInTissueLayer), arrayXToPlot);
                 arrayUpperLoessToPlot = interp1(arrayCIXinTissueLayer, arrayUpperLoessCI(arrayCIIndexInTissueLayer), arrayXToPlot);
                 arrayLowerLoessToPlot = interp1(arrayCIXinTissueLayer, arrayLowerLoessCI(arrayCIIndexInTissueLayer), arrayXToPlot);
-
-
+                
+                %plot the interpolated confidence intervals 
                 plot(arrayXToPlot, (arrayLoessToPlot - numDataMean + arrayUpperLoessToPlot)/numDataStDev, '--', 'Color', arrayPatientColors{iPatient},'LineWidth',(numPlotLowessMarkerSize/8));
                 plot(arrayXToPlot, (arrayLoessToPlot - numDataMean + arrayLowerLoessToPlot)/numDataStDev, '--', 'Color', arrayPatientColors{iPatient},'LineWidth',(numPlotLowessMarkerSize/8));
 
@@ -1996,8 +2019,11 @@ for iOutputProtein = 1:numOutputProteins,
 
         %set the axes
         axis([0 numSpatialBins, arrayTempMin*1.2 arrayTempMax*1.2]);
+        %label the axes/tick marks
         text(  numSpatialBins*0.75, arrayTempMax*0.85, {'\bfPlasma';'\bfMembrane'},  'HorizontalAlignment', 'center',  'FontSize', numPlotFontSizeTitle  );
+        %specify the x-range with respect to the normalised distance
         set(gca, 'XTick', arrayLayerBoundaries, 'XTickLabel', [0 1 2 3]);
+        %specify the y-range with respect to the mean/standard deviation
         set(gca, 'YTick', [ -4, -3, -2, -1, 0, 1, 2, 3, 4 ], 'YTickLabel', []);
         for iTick = ceil(arrayTempMin):floor(arrayTempMax),
             if (iTick >= 2),
@@ -2015,6 +2041,8 @@ for iOutputProtein = 1:numOutputProteins,
         set(gca, 'FontSize', numPlotFontSize);
         xlabel('d_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [14 arrayTempMin*1.35 1]);
         ylabel('I_s_,_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [-4.5 (arrayTempMax+arrayTempMin)/2 1]);
+        %label the figure sub-plot dependent upon other figures that have
+        % been plotted
         if (  ( numLocalisationsForProtein == 1 ) ),
             text(-7.5,arrayTempMax*0.95,'D','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
         elseif (numLocalisationsForProtein == 2) && (length(arrayOtherImageTypes{iOutputProtein}) == 1),
@@ -2027,13 +2055,18 @@ for iOutputProtein = 1:numOutputProteins,
 
         %the cytoplasmic localisation is always sampled, plot it second
         if ~(arrayGroupedNodes(iOutputProtein,1) == 0),
+            %extract the 'node' number used for indexing the protein within a
+            % specific sub-cellular localisation
             numNode = arrayGroupedNodes(iOutputProtein,1);
 
             %load the data cloud for the representative image
             stringRepImageCytoDataFolder = [ stringRepImageDataFolder 'C' strFolderSep ];
-
             structRepImageSampleData = loadSampAnalysis(stringRepImageCytoDataFolder, '.mat');
-
+            
+            %extract the sampled data into an array for subsequent plotting
+            %NB: this is written in a way to make it back compatible with 
+            % some older data which used varying array sizes associated 
+            % with objects (== groups of samples)
             numObjects = length(structRepImageSampleData);
             numSamplesPerObject = size(structRepImageSampleData(1).NormDist,1);
             numPixelsPerSample = size(structRepImageSampleData(1).SigInt,2);
@@ -2045,25 +2078,32 @@ for iOutputProtein = 1:numOutputProteins,
                     arraySampleValues(  (iObject-1)*numSamplesPerObject + iSample, :  ) = structRepImageSampleData(iObject).SigInt(iSample,:);
                 end 
             end
+            %scale the normalised distance of the sampled data accordingly
             arraySamplePositions = rescaleNormDist(arraySamplePositions, numSpatialBins, arrayNormDistRatio);
+        
+            %calculate summary statistics for these data
             numRepImageSmpMean = mean(double(arraySampleValues(:)));
             numRepImageStDev = std(double(arraySampleValues(:)));
 
-
+            %specify the subplot position
             handlePlotTwo = subplot('Position', arrayPlot2Position);
 
             %overlay the lowess smoothed curves and the data cloud for
             %the representative image
             hold on;
+            %plot the mean/standard deviation normalised data cloud
             plot(arraySamplePositions, (double(arraySampleValues) - numRepImageSmpMean)/numRepImageStDev, '.', 'Color', arrayDataCloudColor(arrayPatientToDisplay(iOutputProtein),:), 'MarkerSize', numPlotDataCloudMarkerSize);
 
-
+            %plot the loess curve and corresponding confidence intervals for
+            % each patient
             for iPatient = 1:numPatients,
 
+                %extract the sample data and loess data for this patient
                 stringCytoDataFolder = [ strProcDataFolder arrayOutputProtFolders{iOutputProtein} strFolderSep 'Pat_' num2str(iPatient) strFolderSep 'C' strFolderSep ];
                 structSampleData = loadSampAnalysis(stringCytoDataFolder, '.mat');
                 arrayLoessData = loadLoessCurve(stringCytoDataFolder, '.mat');
 
+                %extract all of the sample data for this patient
                 numDataObjects = length(structSampleData);
                 numSamplesPerObject = length(structSampleData(1).SigInt);
                 arraySampleData  = zeros(numDataObjects*numSamplesPerObject,1,'uint8');
@@ -2074,26 +2114,34 @@ for iOutputProtein = 1:numOutputProteins,
 
                 end
 
+                %calculate summary statistics for this patient's data
                 numDataMean = mean(double(arraySampleData));
                 numDataStDev = std(double(arraySampleData));
 
-
-
+                %plot the mean/standard deviation normalised loess curve
                 plot(arrayLoessData(1,:), (arrayLoessData(2,:) - numDataMean)/numDataStDev, '.', 'Color', arrayPatientColors{iPatient}, 'MarkerSize', numPlotLowessMarkerSize);
+                
+                %extract the confidence interval for residuals around the loess
+                % curve
                 arrayUpperLoessCI = [arrayLoessCIBounds{1, numNode, 1}(:,1); arrayLoessCIBounds{1, numNode, 2}(:,1); arrayLoessCIBounds{1, numNode, 3}(:,1)];
                 arrayLowerLoessCI = [arrayLoessCIBounds{1, numNode, 1}(:,2); arrayLoessCIBounds{1, numNode, 2}(:,2); arrayLoessCIBounds{1, numNode, 3}(:,2)];
-
                 arrayLoessCIXPosCombined = [arrayLoessCIXPos{1, numNode, 1}(:); arrayLoessCIXPos{1, numNode, 2}(:); arrayLoessCIXPos{1, numNode, 3}(:)];
-
+                
+                %extract the x-postions and loess curve values into individual
+                % vectors for easier indexing
                 arrayLoessX = arrayLoessData(1,:);
                 arrayLoessVals = arrayLoessData(2,:);
 
-
+                %move through each tissue layer
                 for iTissueLayer = 1:numTissueLayers,
 
+                    %identify the range of x-values associated with this tissue
+                    % layer
                     numTissueLayerMinX = double(arrayDivisionIndices(iTissueLayer))-1;
                     numTissueLayerMaxX = double(arrayDivisionIndices(iTissueLayer+1))-1;
 
+                    %identify all loess-curve and CI x-positions within the
+                    % extracted range
                     if iTissueLayer < numTissueLayers,
                         arrayIndexInTissueLayer = find( (arrayLoessX >= numTissueLayerMinX) & (arrayLoessX < numTissueLayerMaxX) );
                         arrayCIIndexInTissueLayer = find( (arrayLoessCIXPosCombined >= numTissueLayerMinX) & (arrayLoessCIXPosCombined < numTissueLayerMaxX) );
@@ -2104,17 +2152,17 @@ for iOutputProtein = 1:numOutputProteins,
                     arrayXinTissueLayer = arrayLoessX(arrayIndexInTissueLayer);
                     arrayCIXinTissueLayer = arrayLoessCIXPosCombined(arrayCIIndexInTissueLayer);
 
+                    %identify the highest "first x-pos" and the lowest 
+                    % "last x-pos" between the loess curves and calculated 
+                    % CIs for specifying the interpolation range
                     numPlotMinX = max([arrayXinTissueLayer(1) arrayCIXinTissueLayer(1)]);
                     numPlotMaxX = min([arrayXinTissueLayer(end) arrayCIXinTissueLayer(end)]);
-
-
+                    %interpolate over the extracted range
                     arrayXToPlot = linspace(numPlotMinX, numPlotMaxX,40);
-
                     arrayLoessToPlot = interp1(arrayXinTissueLayer, arrayLoessVals(arrayIndexInTissueLayer), arrayXToPlot);
                     arrayUpperLoessToPlot = interp1(arrayCIXinTissueLayer, arrayUpperLoessCI(arrayCIIndexInTissueLayer), arrayXToPlot);
                     arrayLowerLoessToPlot = interp1(arrayCIXinTissueLayer, arrayLowerLoessCI(arrayCIIndexInTissueLayer), arrayXToPlot);
-
-
+                    %plot the interpolated confidence intervals 
                     plot(arrayXToPlot, (arrayLoessToPlot - numDataMean + arrayUpperLoessToPlot)/numDataStDev, '--', 'Color', arrayPatientColors{iPatient},'LineWidth',(numPlotLowessMarkerSize/8));
                     plot(arrayXToPlot, (arrayLoessToPlot - numDataMean + arrayLowerLoessToPlot)/numDataStDev, '--', 'Color', arrayPatientColors{iPatient},'LineWidth',(numPlotLowessMarkerSize/8));
 
@@ -2122,8 +2170,6 @@ for iOutputProtein = 1:numOutputProteins,
             end
 
             hold off;
-
-
 
             %extract the max and minimum values for adjusting axes
             arrayTempMax = (double(max(arraySampleValues(:))) - numRepImageSmpMean)/numRepImageStDev;
@@ -2136,9 +2182,10 @@ for iOutputProtein = 1:numOutputProteins,
             end
 
             %set the axes
-            axis([0 numSpatialBins, arrayTempMin*1.2 arrayTempMax*1.2]);             
-            text(  numSpatialBins*0.75, arrayTempMax*0.85, '\bfCytoplasm',  'HorizontalAlignment', 'center',  'FontSize', numPlotFontSizeTitle  );
+            axis([0 numSpatialBins, arrayTempMin*1.2 arrayTempMax*1.2]);    
+            %specify the x-range with respect to the normalised distance
             set(gca, 'XTick', arrayLayerBoundaries, 'XTickLabel', [0 1 2 3]);
+            %specify the y-range with respect to the mean/standard deviation
             set(gca, 'YTick', [ -4, -3, -2, -1, 0, 1, 2, 3, 4 ], 'YTickLabel', []);
             for iTick = ceil(arrayTempMin):floor(arrayTempMax),
                 if (iTick >= 2),
@@ -2154,9 +2201,12 @@ for iOutputProtein = 1:numOutputProteins,
                 end
             end
             set(gca, 'FontSize', numPlotFontSize);
+            %label the axes       
+            text(  numSpatialBins*0.75, arrayTempMax*0.85, '\bfCytoplasm',  'HorizontalAlignment', 'center',  'FontSize', numPlotFontSizeTitle  );
             xlabel('d_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [14 arrayTempMin*1.35 1]);
             ylabel('I_s_,_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [-4.5 (arrayTempMax+arrayTempMin)/2 1]);
-
+            %label the figure sub-plot dependent upon other figures that 
+            % have been plotted
             if (  ( numLocalisationsForProtein == 1 ) ),
                 text(-7.5,arrayTempMax*0.95,'E','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
             elseif (numLocalisationsForProtein == 2) && (length(arrayOtherImageTypes{iOutputProtein}) == 1),
@@ -2167,17 +2217,21 @@ for iOutputProtein = 1:numOutputProteins,
                 text(-7.5,arrayTempMax*0.95,'F','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
             end
 
-
             %plot the nuclear localisation (if it exists)
             if ~(arrayGroupedNodes(iOutputProtein,2) == 0),
+                %extract the 'node' number used for indexing the protein
+                % within a specific sub-cellular localisation
                 numNode = arrayGroupedNodes(iOutputProtein,2);
-
 
                 %load the data cloud for the representative image
                 stringRepImageNucDataFolder = [ stringRepImageDataFolder 'N' strFolderSep ];
-
                 structRepImageSampleData = loadSampAnalysis(stringRepImageNucDataFolder, '.mat');
 
+                %extract the sampled data into an array for subsequent 
+                % plotting
+                % NB: this is written in a way to make it back compatible
+                % with some older data which used varying array sizes
+                % associated with objects (== groups of samples)
                 numObjects = length(structRepImageSampleData);
                 numSamplesPerObject = size(structRepImageSampleData(1).NormDist,1);
                 numPixelsPerSample = size(structRepImageSampleData(1).SigInt,2);
@@ -2189,25 +2243,34 @@ for iOutputProtein = 1:numOutputProteins,
                         arraySampleValues(  (iObject-1)*numSamplesPerObject + iSample, :  ) = structRepImageSampleData(iObject).SigInt(iSample,:);
                     end 
                 end
+                %scale the normalised distance of the sampled data 
+                % accordingly
                 arraySamplePositions = rescaleNormDist(arraySamplePositions, numSpatialBins, arrayNormDistRatio);
+                
+                %calculate summary statistics for these data
                 numRepImageSmpMean = mean(double(arraySampleValues(:)));
                 numRepImageStDev = std(double(arraySampleValues(:)));
 
-
-
+                %specify the subplot position
                 handlePlotThree = subplot('Position', arrayPlot3Position);
-                %overlay the lowess smoothed curves and the data cloud for the representative image
+                
+                %overlay the lowess smoothed curves and the data cloud for
+                % the representative image
                 hold on;
+                %plot the mean/standard deviation normalised data cloud
                 plot(arraySamplePositions, (double(arraySampleValues) - numRepImageSmpMean)/numRepImageStDev, '.', 'Color', arrayDataCloudColor(arrayPatientToDisplay(iOutputProtein),:), 'MarkerSize', numPlotDataCloudMarkerSize);
 
-
-
+                %plot the loess curve and corresponding confidence
+                % intervals for each patient
                 for iPatient = 1:numPatients,
 
+                    %extract the sample data and loess data for this 
+                    % patient
                     stringNucDataFolder = [ strProcDataFolder arrayOutputProtFolders{iOutputProtein} strFolderSep 'Pat_' num2str(iPatient) strFolderSep 'N' strFolderSep ];
                     structSampleData = loadSampAnalysis(stringNucDataFolder, '.mat');
                     arrayLoessData = loadLoessCurve(stringNucDataFolder, '.mat');
 
+                    %extract all of the sample data for this patient
                     numDataObjects = length(structSampleData);
                     numSamplesPerObject = length(structSampleData(1).SigInt);
                     arraySampleData  = zeros(numDataObjects*numSamplesPerObject,1,'uint8');
@@ -2218,25 +2281,34 @@ for iOutputProtein = 1:numOutputProteins,
 
                     end
 
+                    %calculate summary statistics for this patient's data
                     numDataMean = mean(double(arraySampleData));
                     numDataStDev = std(double(arraySampleData));
 
-
-
+                    %plot the mean/standard deviation normalised loess
+                    % curve
                     plot(arrayLoessData(1,:), (arrayLoessData(2,:) - numDataMean)/numDataStDev, '.', 'Color', arrayPatientColors{iPatient}, 'MarkerSize', numPlotLowessMarkerSize);
+                    %extract the confidence interval for residuals around
+                    % the loess curve
                     arrayUpperLoessCI = [arrayLoessCIBounds{1, numNode, 1}(:,1); arrayLoessCIBounds{1, numNode, 2}(:,1); arrayLoessCIBounds{1, numNode, 3}(:,1)];
                     arrayLowerLoessCI = [arrayLoessCIBounds{1, numNode, 1}(:,2); arrayLoessCIBounds{1, numNode, 2}(:,2); arrayLoessCIBounds{1, numNode, 3}(:,2)];
                     arrayLoessCIXPosCombined = [arrayLoessCIXPos{1, numNode, 1}(:); arrayLoessCIXPos{1, numNode, 2}(:); arrayLoessCIXPos{1, numNode, 3}(:)];
 
+                    %extract the x-postions and loess curve values into
+                    % individual vectors for easier indexing
                     arrayLoessX = arrayLoessData(1,:);
                     arrayLoessVals = arrayLoessData(2,:);
 
-
+                    %move through each tissue layer
                     for iTissueLayer = 1:numTissueLayers,
 
+                        %identify the range of x-values associated with
+                        % this tissue layer
                         numTissueLayerMinX = double(arrayDivisionIndices(iTissueLayer))-1;
                         numTissueLayerMaxX = double(arrayDivisionIndices(iTissueLayer+1))-1;
 
+                        %identify all loess-curve and CI x-positions within
+                        % the extracted range
                         if iTissueLayer < numTissueLayers,
                             arrayIndexInTissueLayer = find( (arrayLoessX >= numTissueLayerMinX) & (arrayLoessX < numTissueLayerMaxX) );
                             arrayCIIndexInTissueLayer = find( (arrayLoessCIXPosCombined >= numTissueLayerMinX) & (arrayLoessCIXPosCombined < numTissueLayerMaxX) );
@@ -2247,17 +2319,20 @@ for iOutputProtein = 1:numOutputProteins,
                         arrayXinTissueLayer = arrayLoessX(arrayIndexInTissueLayer);
                         arrayCIXinTissueLayer = arrayLoessCIXPosCombined(arrayCIIndexInTissueLayer);
 
+                        %identify the highest "first x-pos" and the lowest
+                        % "last x-pos" between the loess curves and
+                        % calculated CIs for specifying the interpolation
+                        % range
                         numPlotMinX = max([arrayXinTissueLayer(1) arrayCIXinTissueLayer(1)]);
                         numPlotMaxX = min([arrayXinTissueLayer(end) arrayCIXinTissueLayer(end)]);
 
-
+                        %interpolate over the extracted range
                         arrayXToPlot = linspace(numPlotMinX, numPlotMaxX,40);
-
                         arrayLoessToPlot = interp1(arrayXinTissueLayer, arrayLoessVals(arrayIndexInTissueLayer), arrayXToPlot);
                         arrayUpperLoessToPlot = interp1(arrayCIXinTissueLayer, arrayUpperLoessCI(arrayCIIndexInTissueLayer), arrayXToPlot);
                         arrayLowerLoessToPlot = interp1(arrayCIXinTissueLayer, arrayLowerLoessCI(arrayCIIndexInTissueLayer), arrayXToPlot);
 
-
+                        %plot the interpolated confidence intervals 
                         plot(arrayXToPlot, (arrayLoessToPlot - numDataMean + arrayUpperLoessToPlot)/numDataStDev, '--', 'Color', arrayPatientColors{iPatient},'LineWidth',(numPlotLowessMarkerSize/8));
                         plot(arrayXToPlot, (arrayLoessToPlot - numDataMean + arrayLowerLoessToPlot)/numDataStDev, '--', 'Color', arrayPatientColors{iPatient},'LineWidth',(numPlotLowessMarkerSize/8));
 
@@ -2265,7 +2340,6 @@ for iOutputProtein = 1:numOutputProteins,
                 end
 
                 hold off;
-
 
                 %extract the max and minimum values for adjusting axes
                 arrayTempMax = (double(max(arraySampleValues(:))) - numRepImageSmpMean)/numRepImageStDev;
@@ -2279,8 +2353,11 @@ for iOutputProtein = 1:numOutputProteins,
 
                 %set the axes
                 axis([0 numSpatialBins, arrayTempMin*1.2 arrayTempMax*1.2]);
-                text(  numSpatialBins*0.75, arrayTempMax*0.85, '\bfNucleus',  'HorizontalAlignment', 'center',  'FontSize', numPlotFontSizeTitle  );
+                %specify the x-range with respect to the normalised
+                % distance
                 set(gca, 'XTick', arrayLayerBoundaries, 'XTickLabel', [0 1 2 3]);
+                %specify the y-range with respect to the mean/standard
+                % deviation
                 set(gca, 'YTick', [ -4, -3, -2, -1, 0, 1, 2, 3, 4 ], 'YTickLabel', []);
                 for iTick = ceil(arrayTempMin):floor(arrayTempMax),
                     if (iTick >= 2),
@@ -2296,10 +2373,14 @@ for iOutputProtein = 1:numOutputProteins,
                     end
                 end
                 set(gca, 'FontSize', numPlotFontSize);
+                
+                %label the axes
+                text(  numSpatialBins*0.75, arrayTempMax*0.85, '\bfNucleus',  'HorizontalAlignment', 'center',  'FontSize', numPlotFontSizeTitle  );
                 xlabel('d_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [14 arrayTempMin*1.35 1]);
                 ylabel('I_s_,_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [-4.5 (arrayTempMax+arrayTempMin)/2 1]);
 
-
+                %label the figure sub-plot dependent upon other figures
+                % that have been plotted
                 text(-7.5,arrayTempMax*0.95,'G','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
 
             end
@@ -2309,13 +2390,20 @@ for iOutputProtein = 1:numOutputProteins,
     else
         %the cytoplasmic localisation is always sampled, plot it first
         if ~(arrayGroupedNodes(iOutputProtein,1) == 0),
+            
+            %extract the 'node' number used for indexing the protein within
+            % a specific sub-cellular localisation
             numNode = arrayGroupedNodes(iOutputProtein,1);
 
             %load the data cloud for the representative image
             stringRepImageCytoDataFolder = [ stringRepImageDataFolder 'C' strFolderSep ];
-
             structRepImageSampleData = loadSampAnalysis(stringRepImageCytoDataFolder, '.mat');
 
+            
+            %extract the sampled data into an array for subsequent plotting
+            %NB: this is written in a way to make it back compatible with
+            % some older data which used varying array sizes associated
+            % with objects (== groups of samples)
             numObjects = length(structRepImageSampleData);
             numSamplesPerObject = size(structRepImageSampleData(1).NormDist,1);
             numPixelsPerSample = size(structRepImageSampleData(1).SigInt,2);
@@ -2327,23 +2415,33 @@ for iOutputProtein = 1:numOutputProteins,
                     arraySampleValues(  (iObject-1)*numSamplesPerObject + iSample, :  ) = structRepImageSampleData(iObject).SigInt(iSample,:);
                 end 
             end
+            %scale the normalised distance of the sampled data accordingly
             arraySamplePositions = rescaleNormDist(arraySamplePositions, numSpatialBins, arrayNormDistRatio);
+            
+            %calculate summary statistics for these data
             numRepImageSmpMean = mean(double(arraySampleValues(:)));
             numRepImageStDev = std(double(arraySampleValues(:)));
             
+            %specify the subplot position
             handlePlotOne = subplot('Position', arrayPlot1Position);
 
-            %overlay the lowess smoothed curves and the data cloud for the representative image
+            %overlay loess smoothed curves and the data cloud for the
+            % representative image
             hold on;
+            
+            %plot the mean/standard deviation normalised data cloud
             plot(arraySamplePositions, (double(arraySampleValues) - numRepImageSmpMean)/numRepImageStDev, '.', 'Color', arrayDataCloudColor(arrayPatientToDisplay(iOutputProtein),:), 'MarkerSize', numPlotDataCloudMarkerSize);
 
-
+            %plot the loess curve and corresponding confidence intervals
+            % for each patient
             for iPatient = 1:numPatients,
 
+                %extract the sample data and loess data for this patient
                 stringCytoDataFolder = [ strProcDataFolder arrayOutputProtFolders{iOutputProtein} strFolderSep 'Pat_' num2str(iPatient) strFolderSep 'C' strFolderSep ];
                 structSampleData = loadSampAnalysis(stringCytoDataFolder, '.mat');
                 arrayLoessData = loadLoessCurve(stringCytoDataFolder, '.mat');
 
+                %extract all of the sample data for this patient
                 numDataObjects = length(structSampleData);
                 numSamplesPerObject = length(structSampleData(1).SigInt);
                 arraySampleData  = zeros(numDataObjects*numSamplesPerObject,1,'uint8');
@@ -2354,24 +2452,35 @@ for iOutputProtein = 1:numOutputProteins,
 
                 end
 
+                %calculate summary statistics for this patient's data
                 numDataMean = mean(double(arraySampleData));
                 numDataStDev = std(double(arraySampleData));
 
+                %plot the mean/standard deviation normalised loess curve
                 plot(arrayLoessData(1,:), (arrayLoessData(2,:) - numDataMean)/numDataStDev, '.', 'Color', arrayPatientColors{iPatient}, 'MarkerSize', numPlotLowessMarkerSize);
+                
+                %extract the confidence interval for residuals around the
+                % loess curve
                 arrayUpperLoessCI = [arrayLoessCIBounds{1, numNode, 1}(:,1); arrayLoessCIBounds{1, numNode, 2}(:,1); arrayLoessCIBounds{1, numNode, 3}(:,1)];
                 arrayLowerLoessCI = [arrayLoessCIBounds{1, numNode, 1}(:,2); arrayLoessCIBounds{1, numNode, 2}(:,2); arrayLoessCIBounds{1, numNode, 3}(:,2)];
 
                 arrayLoessCIXPosCombined = [arrayLoessCIXPos{1, numNode, 1}(:); arrayLoessCIXPos{1, numNode, 2}(:); arrayLoessCIXPos{1, numNode, 3}(:)];
 
+                %extract the x-postions and loess curve values into 
+                % individual vectors for easier indexing
                 arrayLoessX = arrayLoessData(1,:);
                 arrayLoessVals = arrayLoessData(2,:);
 
-
+                %move through each tissue layer
                 for iTissueLayer = 1:numTissueLayers,
 
+                    %identify the range of x-values associated with this
+                    % tissue layer
                     numTissueLayerMinX = double(arrayDivisionIndices(iTissueLayer))-1;
                     numTissueLayerMaxX = double(arrayDivisionIndices(iTissueLayer+1))-1;
 
+                    %identify all loess-curve and CI x-positions within the
+                    % extracted range
                     if iTissueLayer < numTissueLayers,
                         arrayIndexInTissueLayer = find( (arrayLoessX >= numTissueLayerMinX) & (arrayLoessX < numTissueLayerMaxX) );
                         arrayCIIndexInTissueLayer = find( (arrayLoessCIXPosCombined >= numTissueLayerMinX) & (arrayLoessCIXPosCombined < numTissueLayerMaxX) );
@@ -2382,16 +2491,20 @@ for iOutputProtein = 1:numOutputProteins,
                     arrayXinTissueLayer = arrayLoessX(arrayIndexInTissueLayer);
                     arrayCIXinTissueLayer = arrayLoessCIXPosCombined(arrayCIIndexInTissueLayer);
 
+                    
+                    %identify the highest "first x-pos" and the lowest
+                    % "last x-pos" between the loess curves and calculated
+                    % CIs for specifying the interpolation range
                     numPlotMinX = max([arrayXinTissueLayer(1) arrayCIXinTissueLayer(1)]);
                     numPlotMaxX = min([arrayXinTissueLayer(end) arrayCIXinTissueLayer(end)]);
 
-
+                    %interpolate over the extracted range
                     arrayXToPlot = linspace(numPlotMinX, numPlotMaxX,40);
                     arrayLoessToPlot = interp1(arrayXinTissueLayer, arrayLoessVals(arrayIndexInTissueLayer), arrayXToPlot);
                     arrayUpperLoessToPlot = interp1(arrayCIXinTissueLayer, arrayUpperLoessCI(arrayCIIndexInTissueLayer), arrayXToPlot);
                     arrayLowerLoessToPlot = interp1(arrayCIXinTissueLayer, arrayLowerLoessCI(arrayCIIndexInTissueLayer), arrayXToPlot);
 
-
+                    %plot the interpolated confidence intervals
                     plot(arrayXToPlot, (arrayLoessToPlot - numDataMean + arrayUpperLoessToPlot)/numDataStDev, '--', 'Color', arrayPatientColors{iPatient},'LineWidth',(numPlotLowessMarkerSize/8));
                     plot(arrayXToPlot, (arrayLoessToPlot - numDataMean + arrayLowerLoessToPlot)/numDataStDev, '--', 'Color', arrayPatientColors{iPatient},'LineWidth',(numPlotLowessMarkerSize/8));
 
@@ -2412,8 +2525,10 @@ for iOutputProtein = 1:numOutputProteins,
 
             %set the axes
             axis([0 numSpatialBins, arrayTempMin*1.2 arrayTempMax*1.2]);
-            text(  numSpatialBins*0.75, arrayTempMax*0.85, '\bfCytoplasm',  'HorizontalAlignment', 'center',  'FontSize', numPlotFontSizeTitle  );
+            %specify the x-range with respect to the normalised distance
             set(gca, 'XTick', arrayLayerBoundaries, 'XTickLabel', [0 1 2 3]);
+            %specify the y-range with respect to the mean/standard 
+            % deviation
             set(gca, 'YTick', [ -4, -3, -2, -1, 0, 1, 2, 3, 4 ], 'YTickLabel', []);
             for iTick = ceil(arrayTempMin):floor(arrayTempMax),
                 if (iTick >= 2),
@@ -2429,10 +2544,12 @@ for iOutputProtein = 1:numOutputProteins,
                 end
             end
             set(gca, 'FontSize', numPlotFontSize);
+            %label the axes/tick marks
+            text(  numSpatialBins*0.75, arrayTempMax*0.85, '\bfCytoplasm',  'HorizontalAlignment', 'center',  'FontSize', numPlotFontSizeTitle  );
             xlabel('d_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [14 arrayTempMin*1.35 1]);
             ylabel('I_s_,_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [-4.5 (arrayTempMax+arrayTempMin)/2 1]);
-
-
+            %label the figure sub-plot dependent upon other figures that 
+            % have been plotted
             if (  ( numLocalisationsForProtein == 1 ) ),
                 text(-7.5,arrayTempMax*0.95,'D','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
             elseif (numLocalisationsForProtein == 2) && (length(arrayOtherImageTypes{iOutputProtein}) == 1),
@@ -2443,16 +2560,22 @@ for iOutputProtein = 1:numOutputProteins,
                 text(-7.5,arrayTempMax*0.95,'E','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
             end
 
-
             %plot the nuclear localisation (if it exists)
             if ~(arrayGroupedNodes(iOutputProtein,2) == 0),
+                
+                %extract the 'node' number used for indexing the protein
+                % within a specific sub-cellular localisation
                 numNode = arrayGroupedNodes(iOutputProtein,2);
 
                 %load the data cloud for the representative image
                 stringRepImageNucDataFolder = [ stringRepImageDataFolder 'N' strFolderSep ];
-
                 structRepImageSampleData = loadSampAnalysis(stringRepImageNucDataFolder, '.mat');
 
+                %extract the sampled data into an array for subsequent
+                % plotting
+                %NB: this is written in a way to make it back compatible
+                % with some older data which used varying array sizes
+                % associated with objects (== groups of samples)
                 numObjects = length(structRepImageSampleData);
                 numSamplesPerObject = size(structRepImageSampleData(1).NormDist,1);
                 numPixelsPerSample = size(structRepImageSampleData(1).SigInt,2);
@@ -2464,25 +2587,34 @@ for iOutputProtein = 1:numOutputProteins,
                         arraySampleValues(  (iObject-1)*numSamplesPerObject + iSample, :  ) = structRepImageSampleData(iObject).SigInt(iSample,:);
                     end 
                 end
+                %scale the normalised distance of the sampled data
+                % accordingly
                 arraySamplePositions = rescaleNormDist(arraySamplePositions, numSpatialBins, arrayNormDistRatio);
+                
+                %calculate summary statistics for these data
                 numRepImageSmpMean = mean(double(arraySampleValues(:)));
                 numRepImageStDev = std(double(arraySampleValues(:)));
 
-
+                %specify the subplot position
                 handlePlotTwo = subplot('Position', arrayPlot2Position);
 
-
-                %overlay the lowess smoothed curves and the data cloud for the representative image
+                %overlay the lowess smoothed curves and the data cloud for
+                % the representative image
                 hold on;
+                %plot the mean/standard deviation normalised data cloud
                 plot(arraySamplePositions, (double(arraySampleValues) - numRepImageSmpMean)/numRepImageStDev, '.', 'Color', arrayDataCloudColor(arrayPatientToDisplay(iOutputProtein),:), 'MarkerSize', numPlotDataCloudMarkerSize);
 
-
+                %plot the loess curve and corresponding confidence
+                % intervals for each patient
                 for iPatient = 1:numPatients,
 
+                    %extract the sample data and loess data for this
+                    % patient
                     stringNucDataFolder = [ strProcDataFolder arrayOutputProtFolders{iOutputProtein} strFolderSep 'Pat_' num2str(iPatient) strFolderSep 'N' strFolderSep ];
                     structSampleData = loadSampAnalysis(stringNucDataFolder, '.mat');
                     arrayLoessData = loadLoessCurve(stringNucDataFolder, '.mat');
 
+                    %extract all of the sample data for this patient
                     numDataObjects = length(structSampleData);
                     numSamplesPerObject = length(structSampleData(1).SigInt);
                     arraySampleData  = zeros(numDataObjects*numSamplesPerObject,1,'uint8');
@@ -2493,26 +2625,34 @@ for iOutputProtein = 1:numOutputProteins,
 
                     end
 
+                    %calculate summary statistics for this patient's data
                     numDataMean = mean(double(arraySampleData));
                     numDataStDev = std(double(arraySampleData));
 
-
-
+                    %plot the mean/standard deviation normalised loess curve
                     plot(arrayLoessData(1,:), (arrayLoessData(2,:) - numDataMean)/numDataStDev, '.', 'Color', arrayPatientColors{iPatient}, 'MarkerSize', numPlotLowessMarkerSize);
+                    
+                    %extract the confidence interval for residuals around
+                    % the loess curve
                     arrayUpperLoessCI = [arrayLoessCIBounds{1, numNode, 1}(:,1); arrayLoessCIBounds{1, numNode, 2}(:,1); arrayLoessCIBounds{1, numNode, 3}(:,1)];
                     arrayLowerLoessCI = [arrayLoessCIBounds{1, numNode, 1}(:,2); arrayLoessCIBounds{1, numNode, 2}(:,2); arrayLoessCIBounds{1, numNode, 3}(:,2)];
-
                     arrayLoessCIXPosCombined = [arrayLoessCIXPos{1, numNode, 1}(:); arrayLoessCIXPos{1, numNode, 2}(:); arrayLoessCIXPos{1, numNode, 3}(:)];
 
+                    %extract the x-postions and loess curve values into
+                    % individual vectors for easier indexing
                     arrayLoessX = arrayLoessData(1,:);
                     arrayLoessVals = arrayLoessData(2,:);
 
-
+                    %move through each tissue layer
                     for iTissueLayer = 1:numTissueLayers,
 
+                        %identify the range of x-values associated with
+                        % this tissue layer
                         numTissueLayerMinX = double(arrayDivisionIndices(iTissueLayer))-1;
                         numTissueLayerMaxX = double(arrayDivisionIndices(iTissueLayer+1))-1;
 
+                        %identify all loess-curve and CI x-positions within
+                        % the extracted range
                         if iTissueLayer < numTissueLayers,
                             arrayIndexInTissueLayer = find( (arrayLoessX >= numTissueLayerMinX) & (arrayLoessX < numTissueLayerMaxX) );
                             arrayCIIndexInTissueLayer = find( (arrayLoessCIXPosCombined >= numTissueLayerMinX) & (arrayLoessCIXPosCombined < numTissueLayerMaxX) );
@@ -2523,17 +2663,20 @@ for iOutputProtein = 1:numOutputProteins,
                         arrayXinTissueLayer = arrayLoessX(arrayIndexInTissueLayer);
                         arrayCIXinTissueLayer = arrayLoessCIXPosCombined(arrayCIIndexInTissueLayer);
 
+                        %identify the highest "first x-pos" and the lowest
+                        % "last x-pos" between the loess curves and
+                        % calculated CIs for specifying the interpolation
+                        % range
                         numPlotMinX = max([arrayXinTissueLayer(1) arrayCIXinTissueLayer(1)]);
                         numPlotMaxX = min([arrayXinTissueLayer(end) arrayCIXinTissueLayer(end)]);
 
-
+                        %interpolate over the extracted range
                         arrayXToPlot = linspace(numPlotMinX, numPlotMaxX,40);
-
                         arrayLoessToPlot = interp1(arrayXinTissueLayer, arrayLoessVals(arrayIndexInTissueLayer), arrayXToPlot);
                         arrayUpperLoessToPlot = interp1(arrayCIXinTissueLayer, arrayUpperLoessCI(arrayCIIndexInTissueLayer), arrayXToPlot);
                         arrayLowerLoessToPlot = interp1(arrayCIXinTissueLayer, arrayLowerLoessCI(arrayCIIndexInTissueLayer), arrayXToPlot);
 
-
+                        %plot the interpolated confidence intervals
                         plot(arrayXToPlot, (arrayLoessToPlot - numDataMean + arrayUpperLoessToPlot)/numDataStDev, '--', 'Color', arrayPatientColors{iPatient},'LineWidth',(numPlotLowessMarkerSize/8));
                         plot(arrayXToPlot, (arrayLoessToPlot - numDataMean + arrayLowerLoessToPlot)/numDataStDev, '--', 'Color', arrayPatientColors{iPatient},'LineWidth',(numPlotLowessMarkerSize/8));
 
@@ -2541,7 +2684,6 @@ for iOutputProtein = 1:numOutputProteins,
                 end
 
                 hold off;
-
 
                 %extract the max and minimum values for adjusting axes
                 arrayTempMax = (double(max(arraySampleValues(:))) - numRepImageSmpMean)/numRepImageStDev;
@@ -2555,8 +2697,11 @@ for iOutputProtein = 1:numOutputProteins,
 
                 %set the axes
                 axis([0 numSpatialBins, arrayTempMin*1.2 arrayTempMax*1.2]);
-                text(  numSpatialBins*0.75, arrayTempMax*0.85, '\bfNucleus',  'HorizontalAlignment', 'center',  'FontSize', numPlotFontSizeTitle  );
+                %specify the x-range with respect to the normalised
+                % distance
                 set(gca, 'XTick', arrayLayerBoundaries, 'XTickLabel', [0 1 2 3]);
+                %specify the y-range with respect to the mean/standard
+                % deviation
                 set(gca, 'YTick', [ -4, -3, -2, -1, 0, 1, 2, 3, 4 ], 'YTickLabel', []);
                 for iTick = ceil(arrayTempMin):floor(arrayTempMax),
                     if (iTick >= 2),
@@ -2572,9 +2717,12 @@ for iOutputProtein = 1:numOutputProteins,
                     end
                 end
                 set(gca, 'FontSize', numPlotFontSize);
+                %label the axes
+                text(  numSpatialBins*0.75, arrayTempMax*0.85, '\bfNucleus',  'HorizontalAlignment', 'center',  'FontSize', numPlotFontSizeTitle  );
                 xlabel('d_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [14 arrayTempMin*1.35 1]);
                 ylabel('I_s_,_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [-4.5 (arrayTempMax+arrayTempMin)/2 1]);
-
+                %label the figure sub-plot dependent upon other figures
+                % that have been plotted
                 if (  ( numLocalisationsForProtein == 1 ) ),
                     text(-7.5,arrayTempMax*0.95,'E','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
                 elseif (numLocalisationsForProtein == 2) && (length(arrayOtherImageTypes{iOutputProtein}) == 1),
@@ -2585,36 +2733,41 @@ for iOutputProtein = 1:numOutputProteins,
                     text(-7.5,arrayTempMax*0.95,'F','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
                 end
 
-
             end
 
         end
 
     end
-%     end
     
-    if (iOutputProtein >= 7) && (iOutputProtein <= 10),
     %MEK, pMEK, ERK or pERK; plot the cyto:nuc signal ratio in the
-    % final panel
+    % final panel --> "nodes" 7-10
+    if (iOutputProtein >= 7) && (iOutputProtein <= 10),
+        
+        %specify the subplot position
         handleCytoNucRatio = subplot('Position', arrayPlot3Position);
         
+        %identify the data folder for this protein
         stringProteinDataFolder = [ strProcDataFolder arrayOutputProtFolders{iOutputProtein} strFolderSep ];
        
         hold on;
         
+        %move through each patient
         for iPatient = 1:numPatients,
             
+            %load the cytopplasmic and nuclear data
             stringCytoDataFolder = [ strProcDataFolder arrayOutputProtFolders{iOutputProtein} strFolderSep 'Pat_' num2str(iPatient) strFolderSep 'C' strFolderSep ];
             stringNucDataFolder = [ strProcDataFolder arrayOutputProtFolders{iOutputProtein} strFolderSep 'Pat_' num2str(iPatient) strFolderSep 'N' strFolderSep ];
             arrayLoessCytoData = loadLoessCurve(stringCytoDataFolder, '.mat');
             arrayLoessNucData = loadLoessCurve(stringNucDataFolder, '.mat');
             
-            
+            %move through each tissue layer
             for iTissueLayer = 1:numTissueLayers,
 
+                %determine the range of x values within this tissue layer
                 numTissueLayerMinX = double(arrayDivisionIndices(iTissueLayer))-1;
                 numTissueLayerMaxX = double(arrayDivisionIndices(iTissueLayer+1))-1;
 
+                %identify data points within this tissue layer
                 if iTissueLayer < numTissueLayers,
                     arrayCytoIndexInTissueLayer = find( (arrayLoessCytoData(1,:) >= numTissueLayerMinX) & (arrayLoessCytoData(1,:) < numTissueLayerMaxX) );
                     arrayNucIndexInTissueLayer = find( (arrayLoessNucData(1,:) >= numTissueLayerMinX) & (arrayLoessNucData(1,:) < numTissueLayerMaxX) );
@@ -2623,14 +2776,18 @@ for iOutputProtein = 1:numOutputProteins,
                     arrayNucIndexInTissueLayer = find( (arrayLoessNucData(1,:) >= numTissueLayerMinX) & (arrayLoessNucData(1,:) <= numTissueLayerMaxX) );
                 end
             
+                %identify the highest x-position for the first observation,
+                % and the lowest x-position for the last observation
                 numStartX = max([ arrayLoessCytoData(1,arrayCytoIndexInTissueLayer(1)) arrayLoessNucData(1,arrayNucIndexInTissueLayer(1)) ]);
                 numEndX = min([ arrayLoessCytoData(1,arrayCytoIndexInTissueLayer(end)) arrayLoessNucData(1,arrayNucIndexInTissueLayer(end)) ]);
 
+                %identify between these points
                 arrayInterpXPos = linspace(numStartX, numEndX, numSpatialBins*4);
-
                 arrayInterpNucData = interp1(arrayLoessNucData(1,:), arrayLoessNucData(2,:), arrayInterpXPos);
                 arrayInterpCytoData = interp1(arrayLoessCytoData(1,:), arrayLoessCytoData(2,:), arrayInterpXPos);
 
+                %plot the ratio of loess-smoothed signal intensity between
+                % the nucleus and cytoplasm
                 plot(arrayInterpXPos, arrayInterpCytoData./arrayInterpNucData, '-', 'Color', arrayPatientColors{iPatient,:}, 'LineWidth', 3);
                 
             end
@@ -2638,10 +2795,12 @@ for iOutputProtein = 1:numOutputProteins,
               
         hold off;
         
+        %extract the y-axis limits
         arrayYLim = get(gca, 'YLim');
         arrayTempMin = arrayYLim(1);
         arrayTempMax = arrayYLim(2);
         
+        %rescale for display if necessary
         if arrayTempMin > 0.5,
             arrayTempMin = 0.5;
         end
@@ -2650,17 +2809,24 @@ for iOutputProtein = 1:numOutputProteins,
         end
         set(gca, 'YLim', [arrayTempMin arrayTempMax]);
         
-        %set the axes
+        %set the x-axis
         set(gca, 'XLim', [0 numSpatialBins]);
-        set(gca, 'XTick', arrayLayerBoundaries, 'XTickLabel', [0 1 2 3]);
+        
+        %label the axes/tick marks
         set(gca, 'FontSize', numPlotFontSize);
+        set(gca, 'XTick', arrayLayerBoundaries, 'XTickLabel', [0 1 2 3]);
         xlabel('d_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [14 arrayTempMin-(arrayTempMax - arrayTempMin)*0.1 1]);
         ylabel('(I_s_,_c_y_t_o)/(I_s_,_n_u_c)','FontSize',numPlotFontSizeTitle, 'Position', [-4.5 (arrayTempMax+arrayTempMin)/2 1]);
+        
+        %label the figure panel
         text(-7.5,arrayTempMax*0.95,'F','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
         
     end
-                     
+                  
+    %save the figure
     print(figOut, '-r300', '-dpng', [stringOutputDataFolder arrayOutputProtFolders{iOutputProtein} '.png']);
+    
+    %close the figure window
     close(figOut);
         
 end
