@@ -23,12 +23,8 @@
 %   Systems Biology Laboratory:
 %       joseph.cursons@unimelb.edu.au
 %
-% Last Updated: 09/09/15
-%
- %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
-%% Input Parameters
- %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
- 
+% Last Updated: 11/11/15
+% 
 %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Input Parameters
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  

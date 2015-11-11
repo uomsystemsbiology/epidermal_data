@@ -675,25 +675,30 @@ for iOutputProtein = 1:numOutputProteins,
     structOtherImageTwo = struct('dimensionality', {}, 'arrayXCoOrds', {}, 'arrayYCoOrds', {}, 'arrayPixelInt', {}, 'fv1', {}, 'fv2', {}, 'fv3', {});
     
     if (size(arrayOtherImageTypes{iOutputProtein},2) == 1),
-    %display one image in the remaining space
+        %extract information into structOtherImageOne only
         if arrayOtherImageTypes{iOutputProtein}(1) == 2,
-            %plot the signal intensity as a surface
+            %extract the signal intensity for surface rendering
             structOtherImageOne(iOutputProtein).dimensionality = 2;
             
-            %imageSurf = imrotate(imageRepRot, arrayOtherImageRot(iOutputProtein, 1));
+            %perform the rotation of the original image
             [imageSurf,~] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageRepRot), [1; 1] );
+            %convert the format back to uint8
             imageSurf = uint8(imageSurf);
             
+            %extract the information required for plotting into an output
+            % structure
             structOtherImageOne(iOutputProtein).arrayXCoOrds = [ arrayOtherImageCoOrds{iOutputProtein,1}(1):arrayOtherImageCoOrds{iOutputProtein,1}(2) ];
             structOtherImageOne(iOutputProtein).arrayYCoOrds = [ arrayOtherImageCoOrds{iOutputProtein,1}(3):arrayOtherImageCoOrds{iOutputProtein,1}(4) ];
             structOtherImageOne(iOutputProtein).arrayPixelInt = [ imageSurf( arrayOtherImageCoOrds{iOutputProtein,1}(3):arrayOtherImageCoOrds{iOutputProtein,1}(4), arrayOtherImageCoOrds{iOutputProtein,1}(1):arrayOtherImageCoOrds{iOutputProtein,1}(2) ) ];
             
         elseif arrayOtherImageTypes{iOutputProtein}(1) == 3,
-            %plot the signal intensity as a volume
+            %extract the signal intensity for volume rendering
             structOtherImageOne(iOutputProtein).dimensionality = 3;
             numIsoSurfGroups = size(arrayIsoSurfGroups{iOutputProtein},1);
             
-            %load the input image stack and isolate the target sub-volume
+            %determine the relative file paths and identify positions 
+            % within the file name strings which correspond to the
+            % z-position of the image stack and the captured channel
             arrayBSlashIndex = strfind(stringInputImagePath, '\');
             numLastBSlashIndex = arrayBSlashIndex(end);
             stringStackName = stringInputImagePath(numLastBSlashIndex+1:end);
@@ -701,26 +706,41 @@ for iOutputProtein = 1:numOutputProteins,
             stringStackName(numZPosIndex:numZPosIndex+4) = '_z00*';
             numChIndex = strfind(stringStackName, '_ch');
             stringStackName(numChIndex:numChIndex+4) = '_ch0#';
+            %load the input image stack and isolate the target sub-volume
             imageStackInput = loadImageStack( stringInputImagePath(1:numLastBSlashIndex), stringStackName, arrayImagesInStack(iOutputProtein), 0 );
-            %rotate the image stack as required
+            %rotate the image stack as required - note that this increases
+            % the image size, so do a temporary rotation to determine the
+            % resultant array size for proper memory assignment
             [imageTempInputRot, ~] = rotate_image( (arrayRepImageRotate(iOutputProtein)+arrayOtherImageRot(iOutputProtein, 1)), double(imageStackInput(:,:,1)), [1; 1] );
+            %create an output array for the entire rotated image stack
             imageStackInputRot = zeros(size(imageTempInputRot,1),size(imageTempInputRot,2),'uint8');
-            for iImage = 1:arrayImagesInStack(iOutputProtein)
+            %rotate each image within the stack
+            for iImage = 1:arrayImagesInStack(iOutputProtein),
                 [imageStackInputRot(:,:,iImage), ~] = rotate_image( (arrayRepImageRotate(iOutputProtein)+arrayOtherImageRot(iOutputProtein, 1)), double(imageStackInput(:,:,iImage)), [1; 1] );
             end
+            %extract just the required sub-volume from the full rotated
+            % stack
             imageStackSubVolume = imageStackInputRot(  arrayOtherImageCoOrds{iOutputProtein,1}(3):arrayOtherImageCoOrds{iOutputProtein,1}(4), ...
                                                        arrayOtherImageCoOrds{iOutputProtein,1}(1):arrayOtherImageCoOrds{iOutputProtein,1}(2), ...
                                                        arrayOtherImageCoOrds{iOutputProtein,1}(5):arrayOtherImageCoOrds{iOutputProtein,1}(6) );
-            clear imageStackInput imageStackInputRot; %large array - clear early to free memory
+            clear imageStackInput imageStackInputRot imageTempInputRot; %large arrays - clear early to free memory
             
+            %create a corresponding index sub-volume
             imageIndexedSubVolume = imageStackSubVolume*0;
+            
+            %move through each specified iso-surface group
             for iIsoSurfGroup = 1:numIsoSurfGroups,
+                %identify the voxels which lie within the specified
+                % intensity range
                 arrayVoxelsInGroup = find( imageStackSubVolume >= arrayIsoSurfGroups{iOutputProtein}{iIsoSurfGroup}(1) & ...
                                            imageStackSubVolume <= arrayIsoSurfGroups{iOutputProtein}{iIsoSurfGroup}(2) );
+                %specify their isosurface intensity
                 imageIndexedSubVolume(arrayVoxelsInGroup) = iIsoSurfGroup;
                   
             end
             
+            %populate the faces/volumes structures using the indexed
+            % sub-volume and isosurface function
             structOtherImageOne(iOutputProtein).fv1 = isosurface(imageIndexedSubVolume, 0);
             structOtherImageOne(iOutputProtein).fv2 = isosurface(imageIndexedSubVolume, 1);
             structOtherImageOne(iOutputProtein).fv3 = isosurface(imageIndexedSubVolume, 2);
@@ -728,26 +748,31 @@ for iOutputProtein = 1:numOutputProteins,
         end
         
     elseif (size(arrayOtherImageTypes{iOutputProtein},2) == 2),
-    %display two images in the remaining space
-        %first 'other image'
+    
+        %extract information into structOtherImageOne
         if arrayOtherImageTypes{iOutputProtein}(1) == 2,
-            %plot the signal intensity as a surface
+            %extract the signal intensity for surface rendering
             structOtherImageOne(iOutputProtein).dimensionality = 2;
             
-            %imageSurf = imrotate(imageRepRot, arrayOtherImageRot(iOutputProtein, 1));
-            [imageSurf,JUNKarrayRefPoints] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageRepRot), [1; 1] );
+            %perform the rotation of the original image
+            [imageSurf,~] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageRepRot), [1; 1] );
+            %convert the format back to uint8
             imageSurf = uint8(imageSurf);
             
+            %extract the information required for plotting into an output
+            % structure
             structOtherImageOne(iOutputProtein).arrayXCoOrds = [ arrayOtherImageCoOrds{iOutputProtein,1}(1):arrayOtherImageCoOrds{iOutputProtein,1}(2) ];
             structOtherImageOne(iOutputProtein).arrayYCoOrds = [ arrayOtherImageCoOrds{iOutputProtein,1}(3):arrayOtherImageCoOrds{iOutputProtein,1}(4) ];
             structOtherImageOne(iOutputProtein).arrayPixelInt = [ imageSurf( arrayOtherImageCoOrds{iOutputProtein,1}(3):arrayOtherImageCoOrds{iOutputProtein,1}(4), arrayOtherImageCoOrds{iOutputProtein,1}(1):arrayOtherImageCoOrds{iOutputProtein,1}(2) ) ];
             
         elseif arrayOtherImageTypes{iOutputProtein}(1) == 3,
-            %plot the signal intensity as a volume
+            %extract the signal intensity for volume rendering
             structOtherImageOne(iOutputProtein).dimensionality = 3;
             numIsoSurfGroups = size(arrayIsoSurfGroups{iOutputProtein},1);
             
-            %load the input image stack and isolate the target sub-volume
+            %determine the relative file paths and identify positions 
+            % within the file name strings which correspond to the
+            % z-position of the image stack and the captured channel
             arrayBSlashIndex = strfind(stringInputImagePath, '\');
             numLastBSlashIndex = arrayBSlashIndex(end);
             stringStackName = stringInputImagePath(numLastBSlashIndex+1:end);
@@ -755,50 +780,73 @@ for iOutputProtein = 1:numOutputProteins,
             stringStackName(numZPosIndex:numZPosIndex+4) = '_z00*';
             numChIndex = strfind(stringStackName, '_ch');
             stringStackName(numChIndex:numChIndex+4) = '_ch0#';
+            %load the input image stack and isolate the target sub-volume
             imageStackInput = loadImageStack( stringInputImagePath(1:numLastBSlashIndex), stringStackName, arrayImagesInStack(iOutputProtein), 0 );
-            %rotate the image stack as required
-            [imageTempInputRot, JUNKarrayRefPoints] = rotate_image( (arrayRepImageRotate(iOutputProtein)+arrayOtherImageRot(iOutputProtein, 1)), double(imageStackInput(:,:,1)), [1; 1] );
+            %rotate the image stack as required - note that this increases
+            % the image size, so do a temporary rotation to determine the
+            % resultant array size for proper memory assignment
+            [imageTempInputRot, ~] = rotate_image( (arrayRepImageRotate(iOutputProtein)+arrayOtherImageRot(iOutputProtein, 1)), double(imageStackInput(:,:,1)), [1; 1] );
+            
+            %create an output array for the entire rotated image stack
             imageStackInputRot = zeros(size(imageTempInputRot,1),size(imageTempInputRot,2),'uint8');
             for iImage = 1:arrayImagesInStack(iOutputProtein)
-                [imageStackInputRot(:,:,iImage), JUNKarrayRefPoints] = rotate_image( (arrayRepImageRotate(iOutputProtein)+arrayOtherImageRot(iOutputProtein, 1)), double(imageStackInput(:,:,iImage)), [1; 1] );
+                %rotate each image within the stack
+                [imageStackInputRot(:,:,iImage), ~] = rotate_image( (arrayRepImageRotate(iOutputProtein)+arrayOtherImageRot(iOutputProtein, 1)), double(imageStackInput(:,:,iImage)), [1; 1] );
             end
+            %extract just the required sub-volume from the full rotated
+            % stack
             imageStackSubVolume = imageStackInputRot(  arrayOtherImageCoOrds{iOutputProtein,1}(3):arrayOtherImageCoOrds{iOutputProtein,1}(4), ...
                                                        arrayOtherImageCoOrds{iOutputProtein,1}(1):arrayOtherImageCoOrds{iOutputProtein,1}(2), ...
                                                        arrayOtherImageCoOrds{iOutputProtein,1}(5):arrayOtherImageCoOrds{iOutputProtein,1}(6) );
             clear imageStackInput imageStackInputRot; %large array - clear early to free memory
             
+            %create a corresponding index sub-volume
             imageIndexedSubVolume = imageStackSubVolume*0;
+            %move through each specified iso-surface group
             for iIsoSurfGroup = 1:numIsoSurfGroups,
+                %identify the voxels which lie within the specified
+                % intensity range
                 arrayVoxelsInGroup = find( imageStackSubVolume >= arrayIsoSurfGroups{iOutputProtein}{iIsoSurfGroup}(1) & ...
                                            imageStackSubVolume <= arrayIsoSurfGroups{iOutputProtein}{iIsoSurfGroup}(2) );
+                %specify their isosurface intensity
                 imageIndexedSubVolume(arrayVoxelsInGroup) = iIsoSurfGroup;
-                  
             end
             
+            %populate the faces/volumes structures using the indexed
+            % sub-volume and isosurface function
             structOtherImageOne(iOutputProtein).fv1 = isosurface(imageIndexedSubVolume, 0);
             structOtherImageOne(iOutputProtein).fv2 = isosurface(imageIndexedSubVolume, 1);
             structOtherImageOne(iOutputProtein).fv3 = isosurface(imageIndexedSubVolume, 2);
             
         end
-        %second 'other image'
+        
+        %and then extract information into structOtherImageTwo
         if arrayOtherImageTypes{iOutputProtein}(2) == 2,
-            %plot the signal intensity as a surface
+            
+            %extract the signal intensity for surface rendering
             structOtherImageTwo(iOutputProtein).dimensionality = 2;
             
-            %imageSurf = imrotate(imageRepRot, arrayOtherImageRot(iOutputProtein, 1));
-            [imageSurf,JUNKarrayRefPoints] = rotate_image( arrayOtherImageRot(iOutputProtein, 2), double(imageRepRot), [1; 1] );
+            %perform the rotation of the original image
+            [imageSurf,~] = rotate_image( arrayOtherImageRot(iOutputProtein, 2), double(imageRepRot), [1; 1] );
+            %convert the format back to uint8
             imageSurf = uint8(imageSurf);
             
+            
+            %extract the information required for plotting into an output
+            % structure
             structOtherImageTwo(iOutputProtein).arrayXCoOrds = [ arrayOtherImageCoOrds{iOutputProtein,2}(1):arrayOtherImageCoOrds{iOutputProtein,2}(2) ];
             structOtherImageTwo(iOutputProtein).arrayYCoOrds = [ arrayOtherImageCoOrds{iOutputProtein,2}(3):arrayOtherImageCoOrds{iOutputProtein,2}(4) ];
             structOtherImageTwo(iOutputProtein).arrayPixelInt = [ imageSurf( arrayOtherImageCoOrds{iOutputProtein,2}(3):arrayOtherImageCoOrds{iOutputProtein,2}(4), arrayOtherImageCoOrds{iOutputProtein,2}(1):arrayOtherImageCoOrds{iOutputProtein,2}(2) ) ];
             
         elseif arrayOtherImageTypes{iOutputProtein}(2) == 3,
-            %plot the signal intensity as a volume
+            
+            %extract the signal intensity for volume rendering
             structOtherImageTwo(iOutputProtein).dimensionality = 3;
             numIsoSurfGroups = size(arrayIsoSurfGroups{iOutputProtein},1);
             
-            %load the input image stack and isolate the target sub-volume
+            %determine the relative file paths and identify positions 
+            % within the file name strings which correspond to the
+            % z-position of the image stack and the captured channel
             arrayBSlashIndex = strfind(stringInputImagePath, '\');
             numLastBSlashIndex = arrayBSlashIndex(end);
             stringStackName = stringInputImagePath(numLastBSlashIndex+1:end);
@@ -806,26 +854,39 @@ for iOutputProtein = 1:numOutputProteins,
             stringStackName(numZPosIndex:numZPosIndex+4) = '_z00*';
             numChIndex = strfind(stringStackName, '_ch');
             stringStackName(numChIndex:numChIndex+4) = '_ch0#';
+            %load the input image stack and isolate the target sub-volume
             imageStackInput = loadImageStack( stringInputImagePath(1:numLastBSlashIndex), stringStackName, arrayImagesInStack(iOutputProtein), 0 );
-            %rotate the image stack as required
-            [imageTempInputRot, JUNKarrayRefPoints] = rotate_image( (arrayRepImageRotate(iOutputProtein)+arrayOtherImageRot(iOutputProtein, 2)), double(imageStackInput(:,:,1)), [1; 1] );
+            %rotate the image stack as required - note that this increases
+            % the image size, so do a temporary rotation to determine the
+            % resultant array size for proper memory assignment
+            [imageTempInputRot, ~] = rotate_image( (arrayRepImageRotate(iOutputProtein)+arrayOtherImageRot(iOutputProtein, 2)), double(imageStackInput(:,:,1)), [1; 1] );
+            %create an output array for the entire rotated image stack
             imageStackInputRot = zeros(size(imageTempInputRot,1),size(imageTempInputRot,2),'uint8');
             for iImage = 1:arrayImagesInStack(iOutputProtein)
-                [imageStackInputRot(:,:,iImage), JUNKarrayRefPoints] = rotate_image( (arrayRepImageRotate(iOutputProtein)+arrayOtherImageRot(iOutputProtein, 2)), double(imageStackInput(:,:,iImage)), [1; 1] );
+                %rotate each image within the stack
+                [imageStackInputRot(:,:,iImage), ~] = rotate_image( (arrayRepImageRotate(iOutputProtein)+arrayOtherImageRot(iOutputProtein, 2)), double(imageStackInput(:,:,iImage)), [1; 1] );
             end
+            %extract just the required sub-volume from the full rotated
+            % stack
             imageStackSubVolume = imageStackInputRot(  arrayOtherImageCoOrds{iOutputProtein,2}(3):arrayOtherImageCoOrds{iOutputProtein,2}(4), ...
                                                        arrayOtherImageCoOrds{iOutputProtein,2}(1):arrayOtherImageCoOrds{iOutputProtein,2}(2), ...
                                                        arrayOtherImageCoOrds{iOutputProtein,2}(5):arrayOtherImageCoOrds{iOutputProtein,2}(6) );
             clear imageStackInput imageStackInputRot; %large array - clear early to free memory
             
+            %create a corresponding index sub-volume
             imageIndexedSubVolume = imageStackSubVolume*0;
+            %move through each specified iso-surface group
             for iIsoSurfGroup = 1:numIsoSurfGroups,
+                %identify the voxels which lie within the specified
+                % intensity range
                 arrayVoxelsInGroup = find( imageStackSubVolume >= arrayIsoSurfGroups{iOutputProtein}{iIsoSurfGroup}(1) & ...
                                            imageStackSubVolume <= arrayIsoSurfGroups{iOutputProtein}{iIsoSurfGroup}(2) );
+                %specify their isosurface intensity
                 imageIndexedSubVolume(arrayVoxelsInGroup) = iIsoSurfGroup;
-                  
             end
             
+            %populate the faces/volumes structures using the indexed
+            % sub-volume and isosurface function
             structOtherImageTwo(iOutputProtein).fv1 = isosurface(imageIndexedSubVolume, 0);
             structOtherImageTwo(iOutputProtein).fv2 = isosurface(imageIndexedSubVolume, 1);
             structOtherImageTwo(iOutputProtein).fv3 = isosurface(imageIndexedSubVolume, 2);
@@ -834,21 +895,21 @@ for iOutputProtein = 1:numOutputProteins,
     end
     
     %calculate the position of some reference points to determine the
-    %transform from the representative image to the zoomed image
+    % transform from the representative image to the zoomed image
     arrayOriginalImagePoints = [ 0001, 0001;  %x y      % origin
                                  0001, 1024 ];          % bottom left
     if arrayZoomedRepImageRotate(iOutputProtein) < 0,
-        arrayRotatedImagePoints = [ 1+numImageSizePixels*sind(180+arrayZoomedRepImageRotate(iOutputProtein)), 0001;         % origin
-                                    0001, 1+numImageSizePixels*cosd(arrayZoomedRepImageRotate(iOutputProtein))  ];      % bottom left
+        arrayRotatedImagePoints = [ 1+numImageSizePixels*sind(180+arrayZoomedRepImageRotate(iOutputProtein)), 0001; % origin
+                                    0001, 1+numImageSizePixels*cosd(arrayZoomedRepImageRotate(iOutputProtein))  ];	% bottom left
         %convert to integers and back to double
         arrayRotatedImagePoints = double(uint16(arrayRotatedImagePoints));
     elseif arrayZoomedRepImageRotate(iOutputProtein) == 0,
         %there is no transform
-        arrayRotatedImagePoints = [ 0001, 0001;  %x y      % origin
+        arrayRotatedImagePoints = [ 0001, 0001;  %x y       % origin
                                      0001, 1024 ];          % bottom left
     elseif arrayZoomedRepImageRotate(iOutputProtein) > 0,
-        arrayRotatedImagePoints = [ 0001, 1+numImageSizePixels*sind(arrayZoomedRepImageRotate(iOutputProtein));         % origin
-                                    1+numImageSizePixels*sind(arrayZoomedRepImageRotate(iOutputProtein)), 1+numImageSizePixels*(sind(arrayZoomedRepImageRotate(iOutputProtein))+cosd(arrayZoomedRepImageRotate(iOutputProtein)))  ];      % bottom left
+        arrayRotatedImagePoints = [ 0001, 1+numImageSizePixels*sind(arrayZoomedRepImageRotate(iOutputProtein));     % origin
+                                    1+numImageSizePixels*sind(arrayZoomedRepImageRotate(iOutputProtein)), 1+numImageSizePixels*(sind(arrayZoomedRepImageRotate(iOutputProtein))+cosd(arrayZoomedRepImageRotate(iOutputProtein)))  ];	% bottom left
         %convert to integers and back to double
         arrayRotatedImagePoints = double(uint16(arrayRotatedImagePoints));
     else
@@ -872,8 +933,8 @@ for iOutputProtein = 1:numOutputProteins,
     arrayOriginalImagePoints = [ 0001, 0001;  %x y      % origin
                                  0001, 1024 ];          % bottom left
     if arrayOtherImageRot(iOutputProtein, 1) < 0,
-        arrayRotatedImagePoints = [ 1+numImageSizePixels*sind(180+arrayOtherImageRot(iOutputProtein, 1)), 0001;         % origin
-                                    0001, 1+numImageSizePixels*cosd(arrayOtherImageRot(iOutputProtein, 1))  ];      % bottom left
+        arrayRotatedImagePoints = [ 1+numImageSizePixels*sind(180+arrayOtherImageRot(iOutputProtein, 1)), 0001;	% origin
+                                    0001, 1+numImageSizePixels*cosd(arrayOtherImageRot(iOutputProtein, 1))  ];	% bottom left
         %convert to integers and back to double
         arrayRotatedImagePoints = double(uint16(arrayRotatedImagePoints));
     elseif arrayOtherImageRot(iOutputProtein, 1) == 0,
@@ -881,7 +942,7 @@ for iOutputProtein = 1:numOutputProteins,
         arrayRotatedImagePoints = [ 0001, 0001;  %x y      % origin
                                      0001, 1024 ];          % bottom left
     elseif arrayOtherImageRot(iOutputProtein, 1) > 0,
-        arrayRotatedImagePoints = [ 0001, 1+numImageSizePixels*sind(arrayOtherImageRot(iOutputProtein, 1));         % origin
+        arrayRotatedImagePoints = [ 0001, 1+numImageSizePixels*sind(arrayOtherImageRot(iOutputProtein, 1));	% origin
                                     1+numImageSizePixels*sind(arrayOtherImageRot(iOutputProtein, 1)), 1+numImageSizePixels*(sind(arrayOtherImageRot(iOutputProtein, 1))+cosd(arrayOtherImageRot(iOutputProtein, 1)))  ];      % bottom left
         %convert to integers and back to double
         arrayRotatedImagePoints = double(uint16(arrayRotatedImagePoints));
@@ -1018,18 +1079,25 @@ for iOutputProtein = 1:numOutputProteins,
         %plot a single 'other image'
         handleOtherImage = subplot('Position', arrayOneLocOtherImagePosition);
         
+        %if the first 'other image' is a 2D image
         if structOtherImageOne(iOutputProtein).dimensionality == 2,
-            %surface plot
+            %output the signal intensity surface plot
+            
+            %identify the x-y range to be examined
             arrayXRange = structOtherImageOne(iOutputProtein).arrayXCoOrds;
             arrayYRange = structOtherImageOne(iOutputProtein).arrayYCoOrds;
+            %perform interpolation for subsequent surface smoothing
             arrayXRangeInterp = arrayXRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayXRange(end);
             arrayYRangeInterp = arrayYRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayYRange(end);
+            %extract the defined sub-area
             imageSubArea = structOtherImageOne(iOutputProtein).arrayPixelInt;
+            %perform interpolation for surface smoothing
             imageSubAreaInterp = interp2(arrayXRange, arrayYRange, ...
                                          double(imageSubArea(:,:)), ...
                                          arrayXRangeInterp, arrayYRangeInterp', ...
                                          'cubic');
-            
+            %identify any regions with a zero (or very low) intensity and
+            % set to 0.1 for the subsequent log-transform
             arraySubAreaInterpBelowZeroObsIndices = find(imageSubAreaInterp < 0.01);
             imageSubAreaInterp(arraySubAreaInterpBelowZeroObsIndices) = 0.01;
 
@@ -1045,54 +1113,66 @@ for iOutputProtein = 1:numOutputProteins,
                     'FaceColor','interp',  'EdgeColor','none',  'FaceAlpha','interp',...
                     'AlphaDataMapping','scaled',  'AlphaData',arrayAlphaData, ...
                     'FaceLighting','phong', 'AmbientStrength',0.8);
+                %turn on the camera light
                 camlight;
             end
+            %control axis formatting
             axis tight;
             axis ij;
             axis equal;
-            colormap(jet);
             set(gca, 'DataAspectRatio',[1 1 4/double(arrayNumSurfaceInterp(iOutputProtein,1))]);
+            %set the camera perspective
             view(arrayOtherImageView{iOutputProtein,1}(1), arrayOtherImageView{iOutputProtein,1}(2));
+            %specify the surface intensity color map
+            colormap(jet);
+            %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
             text((arrayXRange(1) + arrayXRange(end))/2, arrayXRange(end)*1.35, 0, {'Approx.';'d_n_o_r_m'}, 'HorizontalAlignment', 'center');
             zlabel('Pix. Int.');
+            %draw the orange line which maps to the representative image
             line([min(arrayXRangeInterp) max(arrayXRangeInterp)], [max(arrayYRangeInterp) max(arrayYRangeInterp)], [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            text(min(arrayXRangeInterp),min(arrayYRangeInterp),max(imageSubAreaInterp(:))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
-            
+            %and label the sub-figure
+            text( min(arrayXRangeInterp), min(arrayYRangeInterp), max(imageSubAreaInterp(:))*1.5, 'C', ...
+                 'FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold' );
+        
+        %if the first 'other image' is a 3D image    
         elseif structOtherImageOne(iOutputProtein).dimensionality == 3,
-            %volume plot
+            %output the signal intensity isosurface volume plot
+            %each isosurface is plotted individually, so turn hold on
             hold on;
             if isdeployed,
                 %don't use alpha data or lighting, because this can crash 
                 % the virtual box (due to OpenGL rendering issues)
+                %plot the first isosurface
                 plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none' );
-
+                %plot the second isosurface
                 plotPatch2 = patch(structOtherImageOne(iOutputProtein).fv2, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none' );
-
+                %plot the third isosurface
                 plotPatch3 = patch(structOtherImageOne(iOutputProtein).fv3, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none' );
             else
                 %plot the surface using alpha transparency
+                %plot the first isosurface
                 plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none', ...
                     'FaceAlpha', 0.05, ...
                     'FaceLighting','phong', ...
                     'AmbientStrength',0.1);
-
+                %plot the second isosurface
                 plotPatch2 = patch(structOtherImageOne(iOutputProtein).fv2, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none', ...
                     'FaceAlpha', 0.5, ...
                     'FaceLighting','phong', ...
                     'AmbientStrength',0.5);
-
+                %plot the third isosurface
                 plotPatch3 = patch(structOtherImageOne(iOutputProtein).fv3, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none', ...
@@ -1104,39 +1184,461 @@ for iOutputProtein = 1:numOutputProteins,
                 camlight;
             end
             
+            %draw the orange line which maps to the representative image
             line( [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], ...
                   [arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3) arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3)], ...
                   [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
             
+            %control axis formatting
             box on;
             axis tight;
             axis ij;
-            view(arrayOtherImageView{3,1});
             axis equal;
+            %set the camera perspective
             set(gca, 'Projection', 'Perspective');
+            set(gca, 'DataAspectRatio', [1 1 0.6]);
+            view(arrayOtherImageView{3,1});
+            %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
             xlabel('Approx. d_n_o_r_m');
-            set(gca, 'DataAspectRatio', [1 1 0.6]);
             hold off;
+            %and label the sub-figure
             text(0,0,(arrayOtherImageCoOrds{iOutputProtein,1}(6)-arrayOtherImageCoOrds{iOutputProtein,1}(5))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
             
         end
         
+    %if two localisations are sampled, but only a single 'other image' is 
+    % displayed    
     elseif (numLocalisationsForProtein == 2) && (length(arrayOtherImageTypes{iOutputProtein}) == 1),
-        %plot a single 'other image'
+        %output the signal intensity surface plot
         handleOtherImage = subplot('Position', arrayTwoLocOtherImagePositionSingle);
+        
+        %if the 'other image' is a 2D image
         if structOtherImageOne(iOutputProtein).dimensionality == 2,
-            %surface plot
+            %output the signal intensity surface plot
+            
+            %identify the x-y range to be examined
             arrayXRange = structOtherImageOne(iOutputProtein).arrayXCoOrds;
             arrayYRange = structOtherImageOne(iOutputProtein).arrayYCoOrds;
+            %perform interpolation for subsequent surface smoothing
             arrayXRangeInterp = arrayXRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayXRange(end);
             arrayYRangeInterp = arrayYRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayYRange(end);
+            %extract the defined sub-area
             imageSubArea = structOtherImageOne(iOutputProtein).arrayPixelInt;
+            %perform interpolation for surface smoothing
             imageSubAreaInterp = interp2(arrayXRange, arrayYRange, ...
                                          double(imageSubArea(:,:)), ...
                                          arrayXRangeInterp, arrayYRangeInterp', ...
                                          'cubic');
+            %identify any regions with a zero (or very low) intensity and
+            % set to 0.1 for the subsequent log-transform
+            arraySubAreaInterpBelowZeroObsIndices = find(imageSubAreaInterp < 0.01);
+            imageSubAreaInterp(arraySubAreaInterpBelowZeroObsIndices) = 0.01;
+            
+            if isdeployed,
+                %don't use alpha data or lighting, because this can crash 
+                % the virtual box (due to OpenGL rendering issues)
+                surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
+                    'FaceColor','interp',  'EdgeColor','none');
+            else
+                %plot the surface using alpha transparency
+                arrayAlphaData = log(imageSubAreaInterp);
+                surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
+                    'FaceColor','interp',  'EdgeColor','none',  'FaceAlpha','interp',...
+                    'AlphaDataMapping','scaled',  'AlphaData',arrayAlphaData, ...
+                    'FaceLighting','phong', 'AmbientStrength',0.8);
+                %turn on the camera light
+                camlight;
+            end
+            %control axis formatting
+            axis tight;
+            axis ij;
+            axis equal;
+            %set the camera perspective
+            set(gca, 'DataAspectRatio',[1 1 4/double(arrayNumSurfaceInterp(iOutputProtein,1))]);
+            view(arrayOtherImageView{iOutputProtein,1}(1), arrayOtherImageView{iOutputProtein,1}(2));
+            %specify the surface intensity color map
+            colormap(jet);
+            %specify axis/tick labelling
+            set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
+            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
+            zlabel('Pix. Int.');
+            xlabel('Approx. d_n_o_r_m');
+            %draw the orange line which maps to the representative image
+            line([min(arrayXRangeInterp) max(arrayXRangeInterp)], [max(arrayYRangeInterp) max(arrayYRangeInterp)], [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
+            %and label the sub-figure
+            text(min(arrayXRangeInterp),min(arrayYRangeInterp),max(imageSubAreaInterp(:))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+            
+        %if the 'other image' is a 3D image   
+        elseif structOtherImageOne(iOutputProtein).dimensionality == 3,
+            %output the signal intensity isosurface volume plot
+            %each isosurface is plotted individually, so turn hold on
+            hold on;
+            if isdeployed,
+                %don't use alpha data or lighting, because this can crash 
+                % the virtual box (due to OpenGL rendering issues)
+                %plot the first isosurface
+                plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none' );
+                %plot the second isosurface
+                plotPatch2 = patch(structOtherImageOne(iOutputProtein).fv2, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none' );
+                %plot the third isosurface
+                plotPatch3 = patch(structOtherImageOne(iOutputProtein).fv3, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none' );
+            else
+                %plot using alpha transparency
+                %plot the first isosurface
+                plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none', ...
+                    'FaceAlpha', 0.05, ...
+                    'FaceLighting','phong', ...
+                    'AmbientStrength',0.1);
+                %plot the second isosurface
+                plotPatch2 = patch(structOtherImageOne(iOutputProtein).fv2, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none', ...
+                    'FaceAlpha', 0.5, ...
+                    'FaceLighting','phong', ...
+                    'AmbientStrength',0.5);
+                %plot the third isosurface
+                plotPatch3 = patch(structOtherImageOne(iOutputProtein).fv3, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none', ...
+                    'FaceAlpha', 0.7, ...
+                    'FaceLighting','phong', ...
+                    'AmbientStrength', 0.7);
+                
+                %turn on the cam light
+                camlight;
+            end
+            
+            %draw the orange line which maps to the representative image
+            line( [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], ...
+                  [arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3) arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3)], ...
+                  [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
+            
+            %control axis formatting
+            box on;
+            axis tight;
+            axis ij;
+            axis equal;
+            %set the camera perspective
+            view(arrayOtherImageView{3,1});
+            set(gca, 'Projection', 'Perspective');
+            set(gca, 'DataAspectRatio', [1 1 0.6]);
+            %specify axis/tick labelling
+            set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
+            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
+            xlabel('Approx. d_n_o_r_m');
+            hold off;
+            
+            %and label the sub-figure
+            text(0,0,(arrayOtherImageCoOrds{iOutputProtein,1}(6)-arrayOtherImageCoOrds{iOutputProtein,1}(5))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+            
+        end
+        
+    %if two localisations are sampled, and two 'other images' are
+    % displayed        
+    elseif (numLocalisationsForProtein == 2) && (length(arrayOtherImageTypes{iOutputProtein}) == 2),
+        
+        %plot the first 'other image'
+        handleOtherImage = subplot('Position', arrayTwoLocOtherImagePositionDoubleOne);
+        
+        %if the first 'other image' is a 2D image
+        if structOtherImageOne(iOutputProtein).dimensionality == 2,
+            %output the signal intensity surface plot
+            
+            %identify the x-y range to be examined
+            arrayXRange = structOtherImageOne(iOutputProtein).arrayXCoOrds;
+            arrayYRange = structOtherImageOne(iOutputProtein).arrayYCoOrds;
+            %perform interpolation for subsequent surface smoothing
+            arrayXRangeInterp = arrayXRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayXRange(end);
+            arrayYRangeInterp = arrayYRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayYRange(end);
+            %extract the defined sub-area
+            imageSubArea = structOtherImageOne(iOutputProtein).arrayPixelInt;
+            %perform interpolation for surface smoothing
+            imageSubAreaInterp = interp2(arrayXRange, arrayYRange, ...
+                                         double(imageSubArea(:,:)), ...
+                                         arrayXRangeInterp, arrayYRangeInterp', ...
+                                         'cubic');
+            %identify any regions with a zero (or very low) intensity and
+            % set to 0.1 for the subsequent log-transform
+            arraySubAreaInterpBelowZeroObsIndices = find(imageSubAreaInterp < 0.01);
+            imageSubAreaInterp(arraySubAreaInterpBelowZeroObsIndices) = 0.01;
+            
+            if isdeployed,
+                %don't use alpha data or lighting, because this can crash 
+                % the virtual box (due to OpenGL rendering issues)
+                surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
+                    'FaceColor','interp',  'EdgeColor','none' );
+            else
+                %plot the surface using alpha transparency
+                arrayAlphaData = log(imageSubAreaInterp);
+                surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
+                    'FaceColor','interp',  'EdgeColor','none',  'FaceAlpha','interp',...
+                    'AlphaDataMapping','scaled',  'AlphaData',arrayAlphaData, ...
+                    'FaceLighting','phong', 'AmbientStrength',0.8);
+                %turn on the camera light
+                camlight;
+            end
+            %control axis formatting
+            axis tight;
+            axis ij;
+            axis equal;
+            %set the camera perspective
+            set(gca, 'DataAspectRatio',[1 1 4/double(arrayNumSurfaceInterp(iOutputProtein,1))]);
+            view(arrayOtherImageView{iOutputProtein,1}(1), arrayOtherImageView{iOutputProtein,1}(2));
+            %specify the surface intensity color map
+            colormap(jet);
+            %specify axis/tick labelling
+            set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
+            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
+            zlabel('Pix. Int.');
+            text((arrayXRange(1) + arrayXRange(end))/2, arrayYRange(end)*1.08, 0, {'Approx.';'d_n_o_r_m'}, 'HorizontalAlignment', 'center');
+            
+            %draw the orange line which maps to the representative image
+            line([min(arrayXRangeInterp) max(arrayXRangeInterp)], [max(arrayYRangeInterp) max(arrayYRangeInterp)], [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
+            %and label the sub-figure
+            text(min(arrayXRangeInterp),min(arrayYRangeInterp),max(imageSubAreaInterp(:))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+        
+        %if the first 'other image' is a 3D image  
+        elseif structOtherImageOne(iOutputProtein).dimensionality == 3,
+            %output the signal intensity isosurface volume plot
+            %each isosurface is plotted individually, so turn hold on
+            hold on;
+            
+            if isdeployed,
+                %don't use alpha data or lighting, because this can crash 
+                % the virtual box (due to OpenGL rendering issues)
+                %plot the first isosurface
+                plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none' );
+                %plot the second isosurface
+                plotPatch2 = patch(structOtherImageOne(iOutputProtein).fv2, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none' );
+                %plot the third isosurface
+                plotPatch3 = patch(structOtherImageOne(iOutputProtein).fv3, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none' );
+            else
+                %plot using alpha transparency
+                %plot the first isosurface
+                plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none', ...
+                    'FaceAlpha', 0.05, ...
+                    'FaceLighting','phong', ...
+                    'AmbientStrength',0.1);
+                %plot the second isosurface
+                plotPatch2 = patch(structOtherImageOne(iOutputProtein).fv2, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none', ...
+                    'FaceAlpha', 0.5, ...
+                    'FaceLighting','phong', ...
+                    'AmbientStrength',0.5);
+                %plot the third isosurface
+                plotPatch3 = patch(structOtherImageOne(iOutputProtein).fv3, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none', ...
+                    'FaceAlpha', 0.7, ...
+                    'FaceLighting','phong', ...
+                    'AmbientStrength', 0.7);
+                
+                %turn on the cam light
+                camlight;
+            end
+            
+            %draw the orange line which maps to the representative image
+            line( [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], ...
+                  [arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3) arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3)], ...
+                  [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
+            
+            %control axis formatting
+            box on;
+            axis tight;
+            axis ij;
+            axis equal;
+            %set the camera perspective
+            view(arrayOtherImageView{iOutputProtein,1});
+            set(gca, 'Projection', 'Perspective');
+            set(gca, 'DataAspectRatio', [1 1 0.6]);
+            %specify axis/tick labelling
+            set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
+            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
+            xlabel('Approx. d_n_o_r_m');
+            hold off;
+            %and label the sub-figure
+            text(0,0,(arrayOtherImageCoOrds{iOutputProtein,1}(6)-arrayOtherImageCoOrds{iOutputProtein,1}(5))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+            
+        end
+        
+        %plot the second 'other image'
+        handleOtherImage = subplot('Position', arrayTwoLocOtherImagePositionDoubleTwo);
+        
+        %if the second 'other image' is a 2D image
+        if structOtherImageTwo(iOutputProtein).dimensionality == 2,
+            %output the signal intensity surface plot
+            
+            %identify the x-y range to be examined
+            arrayXRange = structOtherImageOne(iOutputProtein).arrayXCoOrds;
+            arrayYRange = structOtherImageOne(iOutputProtein).arrayYCoOrds;
+            %perform interpolation for subsequent surface smoothing
+            arrayXRangeInterp = arrayXRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayXRange(end);
+            arrayYRangeInterp = arrayYRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayYRange(end);
+            %extract the defined sub-area
+            imageSubArea = structOtherImageOne(iOutputProtein).arrayPixelInt;
+            %perform interpolation for surface smoothing
+            imageSubAreaInterp = interp2(arrayXRange, arrayYRange, ...
+                                         double(imageSubArea(:,:)), ...
+                                         arrayXRangeInterp, arrayYRangeInterp', ...
+                                         'cubic');
+            %identify any regions with a zero (or very low) intensity and
+            % set to 0.1 for the subsequent log-transform
+            arraySubAreaInterpBelowZeroObsIndices = find(imageSubAreaInterp < 0.01);
+            imageSubAreaInterp(arraySubAreaInterpBelowZeroObsIndices) = 0.01;
+            
+            if isdeployed,
+                %don't use alpha data or lighting, because this can crash 
+                % the virtual box (due to OpenGL rendering issues)
+                surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
+                    'FaceColor','interp',  'EdgeColor','none' );
+            else
+                %plot using alpha transparency
+                arrayAlphaData = log(imageSubAreaInterp);
+                surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
+                    'FaceColor','interp',  'EdgeColor','none',  'FaceAlpha','interp',...
+                    'AlphaDataMapping','scaled',  'AlphaData',arrayAlphaData, ...
+                    'FaceLighting','phong', 'AmbientStrength',0.8);
+                %turn on the camera light
+                camlight;
+            end
+            
+            %control axis formatting
+            axis tight;
+            axis ij;
+            axis equal;
+            %set the camera perspective
+            set(gca, 'DataAspectRatio',[1 1 4/double(arrayNumSurfaceInterp(iOutputProtein,1))]);
+            view(arrayOtherImageView{iOutputProtein,1}(1), arrayOtherImageView{iOutputProtein,1}(2));
+            %specify the surface intensity color map
+            colormap(jet);
+            %specify axis/tick labelling
+            set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
+            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
+            zlabel('Pix. Int.');
+            %draw the orange line which maps to the representative image
+            text((arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1))/2, (arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3))*1.35, 0, {'Approx.';'d_n_o_r_m'}, 'HorizontalAlignment', 'center');
+            %draw the orange line which maps to the representative image
+            line([min(arrayXRangeInterp) max(arrayXRangeInterp)], [max(arrayYRangeInterp) max(arrayYRangeInterp)], [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
+            %and label the sub-figure
+            text(min(arrayXRangeInterp),min(arrayYRangeInterp),max(imageSubAreaInterp(:))*1.5,'D','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+            
+        %if the second 'other image' is a 3D image  
+        elseif structOtherImageTwo(iOutputProtein).dimensionality == 3,
+            %output the signal intensity isosurface volume plot
+            %each isosurface is plotted individually, so turn hold on
+            hold on;
+            if isdeployed,
+                %don't use alpha data or lighting, because this can crash 
+                % the virtual box (due to OpenGL rendering issues)
+                %plot the first isosurface
+                plotPatch1 = patch(structOtherImageTwo(iOutputProtein).fv1, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none' );
+                %plot the second isosurface
+                plotPatch2 = patch(structOtherImageTwo(iOutputProtein).fv2, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none' );
+                %plot the third isosurface
+                plotPatch3 = patch(structOtherImageTwo(iOutputProtein).fv3, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none' );
+            else
+                %plot the surface using alpha transparency
+                %plot the first isosurface
+                plotPatch1 = patch(structOtherImageTwo(iOutputProtein).fv1, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none', ...
+                    'FaceAlpha', 0.05, ...
+                    'FaceLighting','phong', ...
+                    'AmbientStrength',0.1);
+                %plot the second isosurface
+                plotPatch2 = patch(structOtherImageTwo(iOutputProtein).fv2, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none', ...
+                    'FaceAlpha', 0.5, ...
+                    'FaceLighting','phong', ...
+                    'AmbientStrength',0.5);
+                %plot the third isosurface
+                plotPatch3 = patch(structOtherImageTwo(iOutputProtein).fv3, ... 
+                    'FaceColor','g', ... 
+                    'edgecolor', 'none', ...
+                    'FaceAlpha', 0.7, ...
+                    'FaceLighting','phong', ...
+                    'AmbientStrength', 0.7);
+
+                %turn on the cam light
+                camlight;
+            end
+            
+            %draw the orange line which maps to the representative image
+            line( [0 arrayOtherImageCoOrds{iOutputProtein,2}(2)-arrayOtherImageCoOrds{iOutputProtein,2}(1)], ...
+                  [arrayOtherImageCoOrds{iOutputProtein,2}(4)-arrayOtherImageCoOrds{iOutputProtein,2}(3) arrayOtherImageCoOrds{iOutputProtein,2}(4)-arrayOtherImageCoOrds{iOutputProtein,2}(3)], ...
+                  [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
+            
+            %control axis formatting
+            box on;
+            axis tight;
+            axis ij;
+            axis equal;
+            %set the camera perspective
+            set(gca, 'DataAspectRatio', [1 1 0.6]);
+            view(arrayOtherImageView{iOutputProtein,2});
+            set(gca, 'Projection', 'Perspective');
+            %specify axis/tick labelling
+            set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
+            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,2}(2)-arrayOtherImageCoOrds{iOutputProtein,2}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
+            text((arrayOtherImageCoOrds{iOutputProtein,2}(2)-arrayOtherImageCoOrds{iOutputProtein,2}(1))/2, (arrayOtherImageCoOrds{iOutputProtein,2}(4)-arrayOtherImageCoOrds{iOutputProtein,2}(3))*1.35, 0, {'Approx.';'d_n_o_r_m'}, 'HorizontalAlignment', 'center');
+            hold off;
+            %and label the sub-figure
+            text(0,0,(arrayOtherImageCoOrds{iOutputProtein,2}(6)-arrayOtherImageCoOrds{iOutputProtein,2}(5))*1.8,'D','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+            
+        end
+        
+    %if three localisations are sampled, there are always two 'other 
+    % images' displayed because otherwise there's a bunch of white space   
+    elseif numLocalisationsForProtein == 3,
+        
+        %plot the first 'other image'
+        handleOtherImage = subplot('Position', arrayThreeLocOtherImagePositionOne);
+        
+        %if the first 'other image' is a 2D image
+        if structOtherImageOne(iOutputProtein).dimensionality == 2,
+            %output the signal intensity surface plot
+            
+            %identify the x-y range to be examined
+            arrayXRange = structOtherImageOne(iOutputProtein).arrayXCoOrds;
+            arrayYRange = structOtherImageOne(iOutputProtein).arrayYCoOrds;
+            %perform interpolation for subsequent surface smoothing
+            arrayXRangeInterp = arrayXRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayXRange(end);
+            arrayYRangeInterp = arrayYRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayYRange(end);
+            %extract the defined sub-area
+            imageSubArea = structOtherImageOne(iOutputProtein).arrayPixelInt;
+            %perform interpolation for surface smoothing
+            imageSubAreaInterp = interp2(arrayXRange, arrayYRange, ...
+                                         double(imageSubArea(:,:)), ...
+                                         arrayXRangeInterp, arrayYRangeInterp', ...
+                                         'cubic');
+            %identify any regions with a zero (or very low) intensity and
+            % set to 0.1 for the subsequent log-transform
             arraySubAreaInterpBelowZeroObsIndices = find(imageSubAreaInterp < 0.01);
             imageSubAreaInterp(arraySubAreaInterpBelowZeroObsIndices) = 0.01;
             if isdeployed,
@@ -1151,377 +1653,65 @@ for iOutputProtein = 1:numOutputProteins,
                     'FaceColor','interp',  'EdgeColor','none',  'FaceAlpha','interp',...
                     'AlphaDataMapping','scaled',  'AlphaData',arrayAlphaData, ...
                     'FaceLighting','phong', 'AmbientStrength',0.8);
+                %turn on the camera light
                 camlight;
             end
+            %control axis formatting
             axis tight;
             axis ij;
             axis equal;
-            colormap(jet);
+            %set the camera perspective
             set(gca, 'DataAspectRatio',[1 1 4/double(arrayNumSurfaceInterp(iOutputProtein,1))]);
             view(arrayOtherImageView{iOutputProtein,1}(1), arrayOtherImageView{iOutputProtein,1}(2));
-            set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            zlabel('Pix. Int.');
-            xlabel('Approx. d_n_o_r_m');
-            line([min(arrayXRangeInterp) max(arrayXRangeInterp)], [max(arrayYRangeInterp) max(arrayYRangeInterp)], [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            text(min(arrayXRangeInterp),min(arrayYRangeInterp),max(imageSubAreaInterp(:))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
-            
-        elseif structOtherImageOne(iOutputProtein).dimensionality == 3,
-            %volume plot
-            hold on;
-            if isdeployed,
-                %don't use alpha data or lighting, because this can crash 
-                % the virtual box (due to OpenGL rendering issues)
-                plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none' );
-
-                plotPatch2 = patch(structOtherImageOne(iOutputProtein).fv2, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none' );
-
-                plotPatch3 = patch(structOtherImageOne(iOutputProtein).fv3, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none' );
-            else
-                %plot using alpha transparency
-                plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none', ...
-                    'FaceAlpha', 0.05, ...
-                    'FaceLighting','phong', ...
-                    'AmbientStrength',0.1);
-
-                plotPatch2 = patch(structOtherImageOne(iOutputProtein).fv2, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none', ...
-                    'FaceAlpha', 0.5, ...
-                    'FaceLighting','phong', ...
-                    'AmbientStrength',0.5);
-
-                plotPatch3 = patch(structOtherImageOne(iOutputProtein).fv3, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none', ...
-                    'FaceAlpha', 0.7, ...
-                    'FaceLighting','phong', ...
-                    'AmbientStrength', 0.7);
-                
-                camlight;
-            end
-            
-            line( [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], ...
-                  [arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3) arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3)], ...
-                  [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            
-            box on;
-            axis tight;
-            axis ij;
-            view(arrayOtherImageView{3,1});
-            axis equal;
-            set(gca, 'Projection', 'Perspective');
-            set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            xlabel('Approx. d_n_o_r_m');
-            set(gca, 'DataAspectRatio', [1 1 0.6]);
-            hold off;
-            text(0,0,(arrayOtherImageCoOrds{iOutputProtein,1}(6)-arrayOtherImageCoOrds{iOutputProtein,1}(5))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
-            
-        end
-        
-    elseif (numLocalisationsForProtein == 2) && (length(arrayOtherImageTypes{iOutputProtein}) == 2),
-        %plot the first 'other image'
-        handleOtherImage = subplot('Position', arrayTwoLocOtherImagePositionDoubleOne);
-        if structOtherImageOne(iOutputProtein).dimensionality == 2,
-            %surface plot
-            arrayXRange = structOtherImageOne(iOutputProtein).arrayXCoOrds;
-            arrayYRange = structOtherImageOne(iOutputProtein).arrayYCoOrds;
-            arrayXRangeInterp = arrayXRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayXRange(end);
-            arrayYRangeInterp = arrayYRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayYRange(end);
-            imageSubArea = structOtherImageOne(iOutputProtein).arrayPixelInt;
-            imageSubAreaInterp = interp2(arrayXRange, arrayYRange, ...
-                                         double(imageSubArea(:,:)), ...
-                                         arrayXRangeInterp, arrayYRangeInterp', ...
-                                         'cubic');
-            arraySubAreaInterpBelowZeroObsIndices = find(imageSubAreaInterp < 0.01);
-            imageSubAreaInterp(arraySubAreaInterpBelowZeroObsIndices) = 0.01;
-            
-            if isdeployed,
-                %don't use alpha data or lighting, because this can crash 
-                % the virtual box (due to OpenGL rendering issues)
-                surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
-                    'FaceColor','interp',  'EdgeColor','none' );
-            else
-                
-                arrayAlphaData = log(imageSubAreaInterp);
-
-                surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
-                    'FaceColor','interp',  'EdgeColor','none',  'FaceAlpha','interp',...
-                    'AlphaDataMapping','scaled',  'AlphaData',arrayAlphaData, ...
-                    'FaceLighting','phong', 'AmbientStrength',0.8);
-                
-                camlight;
-            end
-            axis tight;
-            axis ij;
-            axis equal;
+            %specify the surface intensity color map
             colormap(jet);
-            set(gca, 'DataAspectRatio',[1 1 4/double(arrayNumSurfaceInterp(iOutputProtein,1))]);
-            view(arrayOtherImageView{iOutputProtein,1}(1), arrayOtherImageView{iOutputProtein,1}(2));
-            set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            zlabel('Pix. Int.');
-            text((arrayXRange(1) + arrayXRange(end))/2, arrayYRange(end)*1.08, 0, {'Approx.';'d_n_o_r_m'}, 'HorizontalAlignment', 'center');
-            
-            line([min(arrayXRangeInterp) max(arrayXRangeInterp)], [max(arrayYRangeInterp) max(arrayYRangeInterp)], [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            text(min(arrayXRangeInterp),min(arrayYRangeInterp),max(imageSubAreaInterp(:))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
-            
-        elseif structOtherImageOne(iOutputProtein).dimensionality == 3,
-            %volume plot
-            hold on;
-            
-            if isdeployed,
-                %don't use alpha data or lighting, because this can crash 
-                % the virtual box (due to OpenGL rendering issues)
-                plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none' );
-
-                plotPatch2 = patch(structOtherImageOne(iOutputProtein).fv2, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none' );
-
-                plotPatch3 = patch(structOtherImageOne(iOutputProtein).fv3, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none' );
-            else
-                %plot using alpha transparency
-                plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none', ...
-                    'FaceAlpha', 0.05, ...
-                    'FaceLighting','phong', ...
-                    'AmbientStrength',0.1);
-
-                plotPatch2 = patch(structOtherImageOne(iOutputProtein).fv2, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none', ...
-                    'FaceAlpha', 0.5, ...
-                    'FaceLighting','phong', ...
-                    'AmbientStrength',0.5);
-
-                plotPatch3 = patch(structOtherImageOne(iOutputProtein).fv3, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none', ...
-                    'FaceAlpha', 0.7, ...
-                    'FaceLighting','phong', ...
-                    'AmbientStrength', 0.7);
-                %and use lighting
-                camlight;
-            end
-            
-            line( [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], ...
-                  [arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3) arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3)], ...
-                  [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            
-            box on;
-            axis tight;
-            axis ij;
-            view(arrayOtherImageView{iOutputProtein,1});
-            axis equal;
-            set(gca, 'Projection', 'Perspective');
-            set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            xlabel('Approx. d_n_o_r_m');
-            set(gca, 'DataAspectRatio', [1 1 0.6]);
-            hold off;
-            text(0,0,(arrayOtherImageCoOrds{iOutputProtein,1}(6)-arrayOtherImageCoOrds{iOutputProtein,1}(5))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
-            
-        end
-        
-        %plot the second 'other image'
-        handleOtherImage = subplot('Position', arrayTwoLocOtherImagePositionDoubleTwo);
-        if structOtherImageTwo(iOutputProtein).dimensionality == 2,
-            %surface plot
-            arrayXRange = structOtherImageOne(iOutputProtein).arrayXCoOrds;
-            arrayYRange = structOtherImageOne(iOutputProtein).arrayYCoOrds;
-            arrayXRangeInterp = arrayXRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayXRange(end);
-            arrayYRangeInterp = arrayYRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayYRange(end);
-            imageSubArea = structOtherImageOne(iOutputProtein).arrayPixelInt;
-            imageSubAreaInterp = interp2(arrayXRange, arrayYRange, ...
-                                         double(imageSubArea(:,:)), ...
-                                         arrayXRangeInterp, arrayYRangeInterp', ...
-                                         'cubic');
-            arraySubAreaInterpBelowZeroObsIndices = find(imageSubAreaInterp < 0.01);
-            imageSubAreaInterp(arraySubAreaInterpBelowZeroObsIndices) = 0.01;
-            if isdeployed,
-                %don't use alpha data or lighting, because this can crash 
-                % the virtual box (due to OpenGL rendering issues)
-                surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
-                    'FaceColor','interp',  'EdgeColor','none' );
-            else
-                %plot using alpha transparency
-                arrayAlphaData = log(imageSubAreaInterp);
-
-                surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
-                    'FaceColor','interp',  'EdgeColor','none',  'FaceAlpha','interp',...
-                    'AlphaDataMapping','scaled',  'AlphaData',arrayAlphaData, ...
-                    'FaceLighting','phong', 'AmbientStrength',0.8);
-                %and use lighting
-                camlight;
-            end
-            axis tight;
-            axis ij;
-            axis equal;
-            colormap(jet);
-            set(gca, 'DataAspectRatio',[1 1 4/double(arrayNumSurfaceInterp(iOutputProtein,1))]);
-            view(arrayOtherImageView{iOutputProtein,1}(1), arrayOtherImageView{iOutputProtein,1}(2));
-            set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            zlabel('Pix. Int.');
-            text((arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1))/2, (arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3))*1.35, 0, {'Approx.';'d_n_o_r_m'}, 'HorizontalAlignment', 'center');
-            line([min(arrayXRangeInterp) max(arrayXRangeInterp)], [max(arrayYRangeInterp) max(arrayYRangeInterp)], [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            text(min(arrayXRangeInterp),min(arrayYRangeInterp),max(imageSubAreaInterp(:))*1.5,'D','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
-            
-        elseif structOtherImageTwo(iOutputProtein).dimensionality == 3,
-            %volume plot
-            hold on;
-            if isdeployed,
-                %don't use alpha data or lighting, because this can crash 
-                % the virtual box (due to OpenGL rendering issues)
-                plotPatch1 = patch(structOtherImageTwo(iOutputProtein).fv1, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none' );
-
-                plotPatch2 = patch(structOtherImageTwo(iOutputProtein).fv2, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none' );
-
-                plotPatch3 = patch(structOtherImageTwo(iOutputProtein).fv3, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none' );
-            else
-                
-                plotPatch1 = patch(structOtherImageTwo(iOutputProtein).fv1, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none', ...
-                    'FaceAlpha', 0.05, ...
-                    'FaceLighting','phong', ...
-                    'AmbientStrength',0.1);
-
-                plotPatch2 = patch(structOtherImageTwo(iOutputProtein).fv2, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none', ...
-                    'FaceAlpha', 0.5, ...
-                    'FaceLighting','phong', ...
-                    'AmbientStrength',0.5);
-
-                plotPatch3 = patch(structOtherImageTwo(iOutputProtein).fv3, ... 
-                    'FaceColor','g', ... 
-                    'edgecolor', 'none', ...
-                    'FaceAlpha', 0.7, ...
-                    'FaceLighting','phong', ...
-                    'AmbientStrength', 0.7);
-
-                camlight;
-            end
-            
-            line( [0 arrayOtherImageCoOrds{iOutputProtein,2}(2)-arrayOtherImageCoOrds{iOutputProtein,2}(1)], ...
-                  [arrayOtherImageCoOrds{iOutputProtein,2}(4)-arrayOtherImageCoOrds{iOutputProtein,2}(3) arrayOtherImageCoOrds{iOutputProtein,2}(4)-arrayOtherImageCoOrds{iOutputProtein,2}(3)], ...
-                  [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            
-            box on;
-            axis tight;
-            axis ij;
-            view(arrayOtherImageView{iOutputProtein,2});
-            axis equal;
-            set(gca, 'Projection', 'Perspective');
-            set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,2}(2)-arrayOtherImageCoOrds{iOutputProtein,2}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            text((arrayOtherImageCoOrds{iOutputProtein,2}(2)-arrayOtherImageCoOrds{iOutputProtein,2}(1))/2, (arrayOtherImageCoOrds{iOutputProtein,2}(4)-arrayOtherImageCoOrds{iOutputProtein,2}(3))*1.35, 0, {'Approx.';'d_n_o_r_m'}, 'HorizontalAlignment', 'center');
-            set(gca, 'DataAspectRatio', [1 1 0.6]);
-            hold off;
-            text(0,0,(arrayOtherImageCoOrds{iOutputProtein,2}(6)-arrayOtherImageCoOrds{iOutputProtein,2}(5))*1.8,'D','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
-            
-        end
-        
-    elseif numLocalisationsForProtein == 3,
-        
-        %plot the first 'other image'
-        handleOtherImage = subplot('Position', arrayThreeLocOtherImagePositionOne);
-        if structOtherImageOne(iOutputProtein).dimensionality == 2,
-            %surface plot
-            arrayXRange = structOtherImageOne(iOutputProtein).arrayXCoOrds;
-            arrayYRange = structOtherImageOne(iOutputProtein).arrayYCoOrds;
-            arrayXRangeInterp = arrayXRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayXRange(end);
-            arrayYRangeInterp = arrayYRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayYRange(end);
-            imageSubArea = structOtherImageOne(iOutputProtein).arrayPixelInt;
-            imageSubAreaInterp = interp2(arrayXRange, arrayYRange, ...
-                                         double(imageSubArea(:,:)), ...
-                                         arrayXRangeInterp, arrayYRangeInterp', ...
-                                         'cubic');
-            arraySubAreaInterpBelowZeroObsIndices = find(imageSubAreaInterp < 0.01);
-            imageSubAreaInterp(arraySubAreaInterpBelowZeroObsIndices) = 0.01;
-            if isdeployed,
-                %don't use alpha data or lighting, because this can crash 
-                % the virtual box (due to OpenGL rendering issues)
-                surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
-                    'FaceColor','interp',  'EdgeColor','none');
-            else
-
-                arrayAlphaData = log(imageSubAreaInterp);
-
-                surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
-                    'FaceColor','interp',  'EdgeColor','none',  'FaceAlpha','interp',...
-                    'AlphaDataMapping','scaled',  'AlphaData',arrayAlphaData, ...
-                    'FaceLighting','phong', 'AmbientStrength',0.8);
-                
-                camlight;
-            end
-            axis tight;
-            axis ij;
-            axis equal;
-            colormap(jet);
-            set(gca, 'DataAspectRatio',[1 1 4/double(arrayNumSurfaceInterp(iOutputProtein,1))]);
-            view(arrayOtherImageView{iOutputProtein,1}(1), arrayOtherImageView{iOutputProtein,1}(2));
+            %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
             text((arrayXRange(end) + arrayXRange(1))/2, arrayYRange(end)*1.35, 0, {'Approx.';'d_n_o_r_m'}, 'HorizontalAlignment', 'center');
             zlabel('Pix. Int.');
+            %draw the orange line which maps to the representative image
             line([min(arrayXRangeInterp) max(arrayXRangeInterp)], [max(arrayYRangeInterp) max(arrayYRangeInterp)], [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
+            %and label the sub-figure
             text(min(arrayXRangeInterp),min(arrayYRangeInterp),max(imageSubAreaInterp(:))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
             
+        %if the first 'other image' is a 3D image
         elseif structOtherImageOne(iOutputProtein).dimensionality == 3,
-            %volume plot
+            %output the signal intensity isosurface volume plot
+            %each isosurface is plotted individually, so turn hold on
             hold on;
             if isdeployed,
                 %don't use alpha data or lighting, because this can crash 
                 % the virtual box (due to OpenGL rendering issues)
+                %plot the first isosurface
                 plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none' );
-
+                %plot the second isosurface
                 plotPatch2 = patch(structOtherImageOne(iOutputProtein).fv2, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none' );
-
+                %plot the third isosurface
                 plotPatch3 = patch(structOtherImageOne(iOutputProtein).fv3, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none' );
             else
+                %plot the surface using alpha transparency
+                %plot the first isosurface
                 plotPatch1 = patch(structOtherImageOne(iOutputProtein).fv1, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none', ...
                     'FaceAlpha', 0.05, ...
                     'FaceLighting','phong', ...
                     'AmbientStrength',0.1);
-
+                %plot the second isosurface
                 plotPatch2 = patch(structOtherImageOne(iOutputProtein).fv2, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none', ...
                     'FaceAlpha', 0.5, ...
                     'FaceLighting','phong', ...
                     'AmbientStrength',0.5);
-
+                %plot the third isosurface
                 plotPatch3 = patch(structOtherImageOne(iOutputProtein).fv3, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none', ...
@@ -1529,42 +1719,57 @@ for iOutputProtein = 1:numOutputProteins,
                     'FaceLighting','phong', ...
                     'AmbientStrength', 0.7);
                 
+                %turn on the cam light
                 camlight;
             end
             
+            %draw the orange line which maps to the representative image
             line( [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], ...
                   [arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3) arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3)], ...
                   [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
             
+            %control axis formatting
             box on;
             axis tight;
             axis ij;
-            view(arrayOtherImageView{iOutputProtein,1});
             axis equal;
+            %set the camera perspective
+            view(arrayOtherImageView{iOutputProtein,1});
             set(gca, 'Projection', 'Perspective');
+            %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
             xlabel('Approx. d_n_o_r_m');
             set(gca, 'DataAspectRatio', [1 1 0.6]);
             hold off;
+            %and label the sub-figure
             text(0,0,(arrayOtherImageCoOrds{iOutputProtein,1}(6)-arrayOtherImageCoOrds{iOutputProtein,1}(5))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
             
         end
         
         
-        %plot the first 'other image'
+        %plot the second 'other image'
         handleOtherImage = subplot('Position', arrayThreeLocOtherImagePositionTwo);
+        
+        %if the first 'other image' is a 2D image
         if structOtherImageTwo(iOutputProtein).dimensionality == 2,
-            %surface plot
+            %output the signal intensity surface plot
+            
+            %identify the x-y range to be examined
             arrayXRange = structOtherImageTwo(iOutputProtein).arrayXCoOrds;
             arrayYRange = structOtherImageTwo(iOutputProtein).arrayYCoOrds;
+            %perform interpolation for subsequent surface smoothing
             arrayXRangeInterp = arrayXRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayXRange(end);
             arrayYRangeInterp = arrayYRange(1):(1/double(arrayNumSurfaceInterp(iOutputProtein,1))):arrayYRange(end);
+            %extract the defined sub-area
             imageSubArea = structOtherImageTwo(iOutputProtein).arrayPixelInt;
+            %perform interpolation for surface smoothing
             imageSubAreaInterp = interp2(arrayXRange, arrayYRange, ...
                                          double(imageSubArea(:,:)), ...
                                          arrayXRangeInterp, arrayYRangeInterp', ...
                                          'cubic');
+            %identify any regions with a zero (or very low) intensity and
+            % set to 0.1 for the subsequent log-transform
             arraySubAreaInterpBelowZeroObsIndices = find(imageSubAreaInterp < 0.01);
             imageSubAreaInterp(arraySubAreaInterpBelowZeroObsIndices) = 0.01;
 
@@ -1574,60 +1779,70 @@ for iOutputProtein = 1:numOutputProteins,
                 surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
                     'FaceColor','interp',  'EdgeColor','none' );
             else
+                %plot the surface using alpha transparency
                 arrayAlphaData = log(imageSubAreaInterp);
                 surf(arrayXRangeInterp, arrayYRangeInterp, imageSubAreaInterp, ...
                     'FaceColor','interp',  'EdgeColor','none',  'FaceAlpha','interp',...
                     'AlphaDataMapping','scaled',  'AlphaData',arrayAlphaData, ...
                     'FaceLighting','phong', 'AmbientStrength',0.8);
+                %turn on the camera light
                 camlight;
             end
+            %control axis formatting
             axis tight;
             axis ij;
             axis equal;
-            
-            colormap(jet);
+            %set the camera perspective
             set(gca, 'DataAspectRatio',[1 1 4/double(arrayNumSurfaceInterp(iOutputProtein,1))]);
             view(arrayOtherImageView{iOutputProtein,1}(1), arrayOtherImageView{iOutputProtein,1}(2));
+            %specify the surface intensity color map
+            colormap(jet);
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
             xlabel('Approx. d_n_o_r_m');
             zlabel('Pix. Int.');
+            %draw the orange line which maps to the representative image
             line([min(arrayXRangeInterp) max(arrayXRangeInterp)], [max(arrayYRangeInterp) max(arrayYRangeInterp)], [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
+            %and label the sub-figure
             text(min(arrayXRangeInterp),min(arrayYRangeInterp),max(imageSubAreaInterp(:))*1.5,'D','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
             
+        %if the second 'other image' is a 3D image   
         elseif structOtherImageTwo(iOutputProtein).dimensionality == 3,
-            %volume plot
+            %output the signal intensity isosurface volume plot
+            %each isosurface is plotted individually, so turn hold on
             hold on;
             if isdeployed,
                 %don't use alpha data or lighting, because this can crash 
                 % the virtual box (due to OpenGL rendering issues)
+                %plot the first isosurface
                 plotPatch1 = patch(structOtherImageTwo(iOutputProtein).fv1, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none' );
-
+                %plot the second isosurface
                 plotPatch2 = patch(structOtherImageTwo(iOutputProtein).fv2, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none' );
-
+                %plot the third isosurface
                 plotPatch3 = patch(structOtherImageTwo(iOutputProtein).fv3, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none' );
             else
-                
+                %plot the surface using alpha transparency
+                %plot the first isosurface
                 plotPatch1 = patch(structOtherImageTwo(iOutputProtein).fv1, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none', ...
                     'FaceAlpha', 0.05, ...
                     'FaceLighting','phong', ...
                     'AmbientStrength',0.1);
-
+                %plot the second isosurface
                 plotPatch2 = patch(structOtherImageTwo(iOutputProtein).fv2, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none', ...
                     'FaceAlpha', 0.5, ...
                     'FaceLighting','phong', ...
                     'AmbientStrength',0.5);
-
+                %plot the third isosurface
                 plotPatch3 = patch(structOtherImageTwo(iOutputProtein).fv3, ... 
                     'FaceColor','g', ... 
                     'edgecolor', 'none', ...
@@ -1635,36 +1850,43 @@ for iOutputProtein = 1:numOutputProteins,
                     'FaceLighting','phong', ...
                     'AmbientStrength', 0.7);
                 
+                %turn on the cam light
                 camlight;
             end
+            
+            %draw the orange line which maps to the representative image
             line( [0 arrayOtherImageCoOrds{iOutputProtein,2}(2)-arrayOtherImageCoOrds{iOutputProtein,2}(1)], ...
                   [arrayOtherImageCoOrds{iOutputProtein,2}(4)-arrayOtherImageCoOrds{iOutputProtein,2}(3) arrayOtherImageCoOrds{iOutputProtein,2}(4)-arrayOtherImageCoOrds{iOutputProtein,2}(3)], ...
                   [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
             
+            %control axis formatting
             box on;
             axis tight;
             axis ij;
-            view(arrayOtherImageView{iOutputProtein,2});
             axis equal;
+            %set the camera perspective
+            view(arrayOtherImageView{iOutputProtein,2});
             set(gca, 'Projection', 'Perspective');
-            set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            xlabel('Approx. d_n_o_r_m');
             set(gca, 'DataAspectRatio', [1 1 0.6]);
+            %specify axis/tick labelling
+            set(gca, 'YTick', [], 'YTickLabel', [], ...
+                     'ZTick', [], 'ZTickLabel', []);
+            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], ...
+                     'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}] );
+            xlabel('Approx. d_n_o_r_m');
             hold off;
-            text(0,0,(arrayOtherImageCoOrds{iOutputProtein,1}(6)-arrayOtherImageCoOrds{iOutputProtein,1}(5))*1.5,'D','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+            %and label the sub-figure
+            text( 0, 0, (arrayOtherImageCoOrds{iOutputProtein,1}(6)-arrayOtherImageCoOrds{iOutputProtein,1}(5))*1.5, 'D', ...
+                  'FontSize', numSubFigLabelFontSize, 'Color' , 'k', 'FontWeight', 'bold' );
             
         end
         
     end
 
-    
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %% Plot the loess-smoothed curves
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 
-%     for iLocalisation = 1:numLocalisationsForProtein,
-                
     %plot the membrane localisation first (if it exists)
     if ~(arrayGroupedNodes(iOutputProtein,3) == 0),
 
