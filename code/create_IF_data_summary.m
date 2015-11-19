@@ -699,15 +699,15 @@ for iOutputProtein = 1:numOutputProteins,
             %determine the relative file paths and identify positions 
             % within the file name strings which correspond to the
             % z-position of the image stack and the captured channel
-            arrayBSlashIndex = strfind(stringInputImagePath, '\');
-            numLastBSlashIndex = arrayBSlashIndex(end);
-            stringStackName = stringInputImagePath(numLastBSlashIndex+1:end);
+            arrayFoldSepIndex = strfind(stringInputImagePath, strFolderSep);
+            numLastFoldSepIndex = arrayFoldSepIndex(end);
+            stringStackName = stringInputImagePath(numLastFoldSepIndex+1:end);
             numZPosIndex = strfind(stringStackName, '_z');
             stringStackName(numZPosIndex:numZPosIndex+4) = '_z00*';
             numChIndex = strfind(stringStackName, '_ch');
             stringStackName(numChIndex:numChIndex+4) = '_ch0#';
             %load the input image stack and isolate the target sub-volume
-            imageStackInput = loadImageStack( stringInputImagePath(1:numLastBSlashIndex), stringStackName, arrayImagesInStack(iOutputProtein), 0 );
+            imageStackInput = loadImageStack( stringInputImagePath(1:numLastFoldSepIndex), stringStackName, arrayImagesInStack(iOutputProtein), 0 );
             %rotate the image stack as required - note that this increases
             % the image size, so do a temporary rotation to determine the
             % resultant array size for proper memory assignment
@@ -773,15 +773,15 @@ for iOutputProtein = 1:numOutputProteins,
             %determine the relative file paths and identify positions 
             % within the file name strings which correspond to the
             % z-position of the image stack and the captured channel
-            arrayBSlashIndex = strfind(stringInputImagePath, '\');
-            numLastBSlashIndex = arrayBSlashIndex(end);
-            stringStackName = stringInputImagePath(numLastBSlashIndex+1:end);
+            arrayFoldSepIndex = strfind(stringInputImagePath, strFolderSep);
+            numLastFoldSepIndex = arrayFoldSepIndex(end);
+            stringStackName = stringInputImagePath(numLastFoldSepIndex+1:end);
             numZPosIndex = strfind(stringStackName, '_z');
             stringStackName(numZPosIndex:numZPosIndex+4) = '_z00*';
             numChIndex = strfind(stringStackName, '_ch');
             stringStackName(numChIndex:numChIndex+4) = '_ch0#';
             %load the input image stack and isolate the target sub-volume
-            imageStackInput = loadImageStack( stringInputImagePath(1:numLastBSlashIndex), stringStackName, arrayImagesInStack(iOutputProtein), 0 );
+            imageStackInput = loadImageStack( stringInputImagePath(1:numLastFoldSepIndex), stringStackName, arrayImagesInStack(iOutputProtein), 0 );
             %rotate the image stack as required - note that this increases
             % the image size, so do a temporary rotation to determine the
             % resultant array size for proper memory assignment
@@ -847,15 +847,15 @@ for iOutputProtein = 1:numOutputProteins,
             %determine the relative file paths and identify positions 
             % within the file name strings which correspond to the
             % z-position of the image stack and the captured channel
-            arrayBSlashIndex = strfind(stringInputImagePath, '\');
-            numLastBSlashIndex = arrayBSlashIndex(end);
-            stringStackName = stringInputImagePath(numLastBSlashIndex+1:end);
+            arrayFoldSepIndex = strfind(stringInputImagePath, strFolderSep);
+            numLastFoldSepIndex = arrayFoldSepIndex(end);
+            stringStackName = stringInputImagePath(numLastFoldSepIndex+1:end);
             numZPosIndex = strfind(stringStackName, '_z');
             stringStackName(numZPosIndex:numZPosIndex+4) = '_z00*';
             numChIndex = strfind(stringStackName, '_ch');
             stringStackName(numChIndex:numChIndex+4) = '_ch0#';
             %load the input image stack and isolate the target sub-volume
-            imageStackInput = loadImageStack( stringInputImagePath(1:numLastBSlashIndex), stringStackName, arrayImagesInStack(iOutputProtein), 0 );
+            imageStackInput = loadImageStack( stringInputImagePath(1:numLastFoldSepIndex), stringStackName, arrayImagesInStack(iOutputProtein), 0 );
             %rotate the image stack as required - note that this increases
             % the image size, so do a temporary rotation to determine the
             % resultant array size for proper memory assignment
