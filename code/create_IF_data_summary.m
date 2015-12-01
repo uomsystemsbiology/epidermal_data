@@ -94,22 +94,22 @@ arrayOutputProtFolders = { 'ITGB1'; 'ITGB4'; 'SFN'; 'CALM'; 'RAF'; ...
 
 %arrayOutputProtFolders contains LaTeX compatible strings ('$$' around
 % special characters) for overlaying on the figures.
-arrayProteinLateXString = { ['$${\beta}1$$-Integrin $$\;$$']; ...
-                            ['$${\beta}4$$-Integrin $$\;$$']; ...
-                            ['14-3-3$${\sigma}$$']; ...
+arrayProteinLateXString = { ['$${\beta}1$$ integrin $$\;$$']; ...
+                            ['$${\beta}4$$ integrin $$\;$$']; ...
+                            ['Stratifin (14-3-3$${\sigma}$$)']; ...
                             ['Calmodulin $$\;$$']; ...
                             ['Raf-1']; ...
                             ['phospho-Raf-1 $$\; \; \; \;$$']; ...
-                            ['MEK-1/2 $$\;$$']; ...
-                            ['phospho-MEK-1/2 $$\; \; \; \;$$']; ...
-                            ['ERK-1/2 $$\;$$']; ...
-                            ['phospho-ERK-1/2 $$\; \; \; \;$$']; ...
+                            ['MEK1/2 $$\;$$']; ...
+                            ['phospho-MEK1/2 $$\; \; \; \;$$']; ...
+                            ['ERK1/2 $$\;$$']; ...
+                            ['phospho-ERK1/2 $$\; \; \; \;$$']; ...
                             ['Jun-B']; ...
                             ['c-Jun']; ...
                             ['c-Fos']; ...
                             ['Fra-2']; ...
-                            ['Keratin-10 $$\;$$']; ...
-                            ['Keratin-14 $$\;$$'] };
+                            ['Keratin 10 $$\;$$']; ...
+                            ['Keratin 14 $$\;$$'] };
                         
                         
 %specify the patient for the 'representative image data' of the protein
@@ -401,174 +401,174 @@ strProcDataFolder = [ strBaseDir 'processed' strFolderSep ];
     
 %for now just output to the base directory
 stringOutputDataFolder = strBaseDir;
-
- %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
-%% Perform Pre-Processing - Extract Confidence Intervals for Residuals
-%   From the Loess Curve 
- %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
-
-%extract the full spatial discretisation arrays
-[arrayIntervalCentres, arrayDistIntervals, arrayDivisionIndices] = calculateSpatialDivisions( numSpatialBins, arrayNormDistRatio );
-arrayLayerBoundaries = arrayDivisionIndices-1;
-
-%calculate the confidence interval bounds for loess smoothing at various
-% positions along the normalised distance coordinate
-arrayLoessCIBounds = cell(numPatients, numNodesTotal, numTissueLayers);
-arrayLoessCIXPos = cell(numPatients, numNodesTotal, numTissueLayers);
-
-%move through all specified output nodes to calculate the confidence
-% intervals around the loess-smoothed curve
-disp(['calculating confidence intervals for residuals from the Loess curve..']);
-for iNode = 1:numOutputNodes,
-    
-    disp([char(9) '.. for localised target ' num2str(iNode) ' of ' num2str(numOutputNodes) ]);
-    
-    %determine the target protein/localisation
-    numNode = arrayOutputNodeOrder(iNode);
-    [numOutputProt, numLoc] = find(arrayGroupedNodes == numNode);
-    
-    %use this to specify the data sub-folder
-    if numLoc == 1,
-        strLoc = 'C';
-    elseif  numLoc == 2,
-        strLoc = 'N';
-    elseif  numLoc == 3,
-        strLoc = 'M';
-    else
-        disp(['warning: the sample location cannot be determined from "arrayGroupedNodes" - numLoc == ' num2str(numLoc)]);
-    end
-    
-    %step through every patient
-    for iPatient = 1:numPatients,
-        
-        %determine the data sub-folder from the target/patient
-        stringSpecificProcDataFolder = [strProcDataFolder arrayOutputProtFolders{numOutputProt} strFolderSep 'Pat_' num2str(iPatient) strFolderSep strLoc strFolderSep ];
-        
-        %load the analysed sample data which have been converted to
-        % normalised distance
-        structSampleAnalysis = loadSampAnalysis( stringSpecificProcDataFolder, '.mat' );
-
-        %extract the signal intensity data into arrays that can be used for
-        % calculating the confidence intervals around the loess curves
-        %NB: to ensure backwards compatibility with older processed data
-        % sets, this extracts 'objects' (grouped samples) and then attempts
-        % to unpack them; in the new/latest processed data files each
-        % object only contains one sample
-        numObjects = length(structSampleAnalysis);
-        numSamplesPerObject = size(structSampleAnalysis(1).NormDist,1);
-        numPixelsPerSample = size(structSampleAnalysis(1).SigInt,2);
-        %dependent upon the extracted feature information, create a
-        % corresponding output array for sample positions and signal
-        % intensity values
-        arraySampleValues = zeros(numObjects*numSamplesPerObject, numPixelsPerSample, 'uint8');
-        arraySamplePositions = zeros(numObjects*numSamplesPerObject,1, 'double');
-        %populate these arrays
-        for iObject = 1:numObjects,
-            for iSample = 1:numSamplesPerObject,
-                arraySamplePositions(  (iObject-1)*numSamplesPerObject + iSample  ) = structSampleAnalysis(iObject).NormDist(iSample);
-                arraySampleValues(  (iObject-1)*numSamplesPerObject + iSample, :  ) = structSampleAnalysis(iObject).SigInt(iSample,:);
-            end 
-        end
-        
-        %rescale these data along the normalised distance axis
-        arraySamplePositions = rescaleNormDist(arraySamplePositions, numSpatialBins, arrayNormDistRatio);
-        
-        %load the loess-smoothed data
-        arrayLoessData = loadLoessCurve(stringSpecificProcDataFolder, '.mat');
-        
-        %extract into arrays for manipulating
-        arrayTempLoessXPos = arrayLoessData(1,:);
-        arrayTempLoess = arrayLoessData(2,:);
-        
-        %move through each tissue layer (the loess smoothing is
-        % discontinuous over tissue layer boundaries/performed within
-        % tissue layers)
-        for iTissueLayer = 1:numTissueLayers,
-            
-            %identify the minimum and maximum x-positions within the tissue
-            % layer
-            numStartX = double(arrayDivisionIndices(iTissueLayer)-1);
-            numEndX = double(arrayDivisionIndices(iTissueLayer+1)-1);
-            
-            %identify loess-smoothed and sampled data points within these
-            % bounds
-            if iTissueLayer < numTissueLayers,
-                arraySamplesInTLIndex = find( (arraySamplePositions >= numStartX) & (arraySamplePositions < numEndX) );
-                arrayLoessInTLIndex = find( (arrayTempLoessXPos >= numStartX) & (arrayTempLoessXPos < numEndX) );
-            elseif iTissueLayer == numTissueLayers,
-                arraySamplesInTLIndex = find( (arraySamplePositions >= numStartX) & (arraySamplePositions <= numEndX) );
-                arrayLoessInTLIndex = find( (arrayTempLoessXPos >= numStartX) & (arrayTempLoessXPos <= numEndX) );
-            end
-            
-            %extract just the data points within the tissue layer, and 
-            % ensure that they are contiguous along the normalised distance
-            % co-ordinate
-            arraySamplePositionsInTL = arraySamplePositions(arraySamplesInTLIndex);
-            [ arraySortedXPos, arrayIndexSortedXPos ] = sort(arraySamplePositionsInTL);
-                        
-            %extract just the loess-curve points within the tissue layer
-            arrayLoessinTL = arrayTempLoess(arrayLoessInTLIndex);
-            arrayLoessinTLXPos = arrayTempLoessXPos(arrayLoessInTLIndex);
-            
-            %specify the size of the array within the "output" cell array
-            arrayLoessCIBounds{iPatient, numNode, iTissueLayer} = zeros(length(arrayLoessinTLXPos),2,'double');
-            arrayLoessCIXPos{iPatient, numNode, iTissueLayer} = zeros(length(arrayLoessinTLXPos),1,'double');
-        
-            numClosestPoints = int32(double(length(arraySamplesInTLIndex))*numLoessWindowSize);
-            
-            %move through each individual x-point
-            for iXPos = 1:length(arrayLoessInTLIndex),
-
-                %extract the spatial position
-                numXPos = arrayLoessinTLXPos(iXPos);
-                arrayLoessCIXPos{iPatient, numNode, iTissueLayer}(iXPos) = numXPos;
-                
-                %identify index values
-                numLoessVal = arrayLoessinTL(iXPos);
-
-                %find the points closest to this x-position
-                arrayXPosDiff = arraySortedXPos - numXPos;
-                arrayXPosAbsDiff = abs(arrayXPosDiff);
-                [ arraySortedXPosAbsDiff, arrayIndexSortedXPosAbsDiff ] = sort(arrayXPosAbsDiff);
-                
-                %create a pointer array for the 'closest points'
-                arrayTempPointer = arrayIndexSortedXPos(arrayIndexSortedXPosAbsDiff(1:numClosestPoints));
-                arrayTruePointer = arraySamplesInTLIndex(arrayTempPointer);
-                
-                %extract just these 'closest points' and calculate the
-                % residual from the loess point
-                arrayLocalSampleValues = arraySampleValues(arrayTruePointer,:);
-                arrayLocalSampleDiff = double(arrayLocalSampleValues(:)) - numLoessVal;
-                
-                %if there are data points above/below the loess curve
-                arrayAboveLoessIndex = find(arrayLocalSampleDiff > 0);
-                arrayBelowLoessIndex = find(arrayLocalSampleDiff < 0);
-                
-                %determine the confidence interval "above" the loess curve
-                if ~isempty(arrayAboveLoessIndex),
-                    [arrayTempFreq, arrayTempInt] = ecdf(arrayLocalSampleDiff(arrayAboveLoessIndex));
-                    arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,1) = interp1(arrayTempFreq,arrayTempInt, numUniDirConfInt);
-                else
-                    arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,1) = NaN;
-                end
-                
-                %determine the confidence interval "below" the loess curve
-                if ~isempty(arrayBelowLoessIndex),
-                    [arrayTempFreq, arrayTempInt] = ecdf(arrayLocalSampleDiff(arrayBelowLoessIndex));
-                    arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,2) = interp1(arrayTempFreq,arrayTempInt, (1-numUniDirConfInt));
-                else
-                    arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,2) = NaN;
-                end
-                
-            end
-
-        end
- 
-    end
-    
-    disp([char(9) char(9) 'approx ' num2str((iNode/numOutputNodes)*100, '%03.1f') '% complete']);
-    
-end
+% 
+%  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+% %% Perform Pre-Processing - Extract Confidence Intervals for Residuals
+% %   From the Loess Curve 
+%  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
+% 
+% %extract the full spatial discretisation arrays
+% [arrayIntervalCentres, arrayDistIntervals, arrayDivisionIndices] = calculateSpatialDivisions( numSpatialBins, arrayNormDistRatio );
+% arrayLayerBoundaries = arrayDivisionIndices-1;
+% 
+% %calculate the confidence interval bounds for loess smoothing at various
+% % positions along the normalised distance coordinate
+% arrayLoessCIBounds = cell(numPatients, numNodesTotal, numTissueLayers);
+% arrayLoessCIXPos = cell(numPatients, numNodesTotal, numTissueLayers);
+% 
+% %move through all specified output nodes to calculate the confidence
+% % intervals around the loess-smoothed curve
+% disp(['calculating confidence intervals for residuals from the Loess curve..']);
+% for iNode = 1:numOutputNodes,
+%     
+%     disp([char(9) '.. for localised target ' num2str(iNode) ' of ' num2str(numOutputNodes) ]);
+%     
+%     %determine the target protein/localisation
+%     numNode = arrayOutputNodeOrder(iNode);
+%     [numOutputProt, numLoc] = find(arrayGroupedNodes == numNode);
+%     
+%     %use this to specify the data sub-folder
+%     if numLoc == 1,
+%         strLoc = 'C';
+%     elseif  numLoc == 2,
+%         strLoc = 'N';
+%     elseif  numLoc == 3,
+%         strLoc = 'M';
+%     else
+%         disp(['warning: the sample location cannot be determined from "arrayGroupedNodes" - numLoc == ' num2str(numLoc)]);
+%     end
+%     
+%     %step through every patient
+%     for iPatient = 1:numPatients,
+%         
+%         %determine the data sub-folder from the target/patient
+%         stringSpecificProcDataFolder = [strProcDataFolder arrayOutputProtFolders{numOutputProt} strFolderSep 'Pat_' num2str(iPatient) strFolderSep strLoc strFolderSep ];
+%         
+%         %load the analysed sample data which have been converted to
+%         % normalised distance
+%         structSampleAnalysis = loadSampAnalysis( stringSpecificProcDataFolder, '.mat' );
+% 
+%         %extract the signal intensity data into arrays that can be used for
+%         % calculating the confidence intervals around the loess curves
+%         %NB: to ensure backwards compatibility with older processed data
+%         % sets, this extracts 'objects' (grouped samples) and then attempts
+%         % to unpack them; in the new/latest processed data files each
+%         % object only contains one sample
+%         numObjects = length(structSampleAnalysis);
+%         numSamplesPerObject = size(structSampleAnalysis(1).NormDist,1);
+%         numPixelsPerSample = size(structSampleAnalysis(1).SigInt,2);
+%         %dependent upon the extracted feature information, create a
+%         % corresponding output array for sample positions and signal
+%         % intensity values
+%         arraySampleValues = zeros(numObjects*numSamplesPerObject, numPixelsPerSample, 'uint8');
+%         arraySamplePositions = zeros(numObjects*numSamplesPerObject,1, 'double');
+%         %populate these arrays
+%         for iObject = 1:numObjects,
+%             for iSample = 1:numSamplesPerObject,
+%                 arraySamplePositions(  (iObject-1)*numSamplesPerObject + iSample  ) = structSampleAnalysis(iObject).NormDist(iSample);
+%                 arraySampleValues(  (iObject-1)*numSamplesPerObject + iSample, :  ) = structSampleAnalysis(iObject).SigInt(iSample,:);
+%             end 
+%         end
+%         
+%         %rescale these data along the normalised distance axis
+%         arraySamplePositions = rescaleNormDist(arraySamplePositions, numSpatialBins, arrayNormDistRatio);
+%         
+%         %load the loess-smoothed data
+%         arrayLoessData = loadLoessCurve(stringSpecificProcDataFolder, '.mat');
+%         
+%         %extract into arrays for manipulating
+%         arrayTempLoessXPos = arrayLoessData(1,:);
+%         arrayTempLoess = arrayLoessData(2,:);
+%         
+%         %move through each tissue layer (the loess smoothing is
+%         % discontinuous over tissue layer boundaries/performed within
+%         % tissue layers)
+%         for iTissueLayer = 1:numTissueLayers,
+%             
+%             %identify the minimum and maximum x-positions within the tissue
+%             % layer
+%             numStartX = double(arrayDivisionIndices(iTissueLayer)-1);
+%             numEndX = double(arrayDivisionIndices(iTissueLayer+1)-1);
+%             
+%             %identify loess-smoothed and sampled data points within these
+%             % bounds
+%             if iTissueLayer < numTissueLayers,
+%                 arraySamplesInTLIndex = find( (arraySamplePositions >= numStartX) & (arraySamplePositions < numEndX) );
+%                 arrayLoessInTLIndex = find( (arrayTempLoessXPos >= numStartX) & (arrayTempLoessXPos < numEndX) );
+%             elseif iTissueLayer == numTissueLayers,
+%                 arraySamplesInTLIndex = find( (arraySamplePositions >= numStartX) & (arraySamplePositions <= numEndX) );
+%                 arrayLoessInTLIndex = find( (arrayTempLoessXPos >= numStartX) & (arrayTempLoessXPos <= numEndX) );
+%             end
+%             
+%             %extract just the data points within the tissue layer, and 
+%             % ensure that they are contiguous along the normalised distance
+%             % co-ordinate
+%             arraySamplePositionsInTL = arraySamplePositions(arraySamplesInTLIndex);
+%             [ arraySortedXPos, arrayIndexSortedXPos ] = sort(arraySamplePositionsInTL);
+%                         
+%             %extract just the loess-curve points within the tissue layer
+%             arrayLoessinTL = arrayTempLoess(arrayLoessInTLIndex);
+%             arrayLoessinTLXPos = arrayTempLoessXPos(arrayLoessInTLIndex);
+%             
+%             %specify the size of the array within the "output" cell array
+%             arrayLoessCIBounds{iPatient, numNode, iTissueLayer} = zeros(length(arrayLoessinTLXPos),2,'double');
+%             arrayLoessCIXPos{iPatient, numNode, iTissueLayer} = zeros(length(arrayLoessinTLXPos),1,'double');
+%         
+%             numClosestPoints = int32(double(length(arraySamplesInTLIndex))*numLoessWindowSize);
+%             
+%             %move through each individual x-point
+%             for iXPos = 1:length(arrayLoessInTLIndex),
+% 
+%                 %extract the spatial position
+%                 numXPos = arrayLoessinTLXPos(iXPos);
+%                 arrayLoessCIXPos{iPatient, numNode, iTissueLayer}(iXPos) = numXPos;
+%                 
+%                 %identify index values
+%                 numLoessVal = arrayLoessinTL(iXPos);
+% 
+%                 %find the points closest to this x-position
+%                 arrayXPosDiff = arraySortedXPos - numXPos;
+%                 arrayXPosAbsDiff = abs(arrayXPosDiff);
+%                 [ arraySortedXPosAbsDiff, arrayIndexSortedXPosAbsDiff ] = sort(arrayXPosAbsDiff);
+%                 
+%                 %create a pointer array for the 'closest points'
+%                 arrayTempPointer = arrayIndexSortedXPos(arrayIndexSortedXPosAbsDiff(1:numClosestPoints));
+%                 arrayTruePointer = arraySamplesInTLIndex(arrayTempPointer);
+%                 
+%                 %extract just these 'closest points' and calculate the
+%                 % residual from the loess point
+%                 arrayLocalSampleValues = arraySampleValues(arrayTruePointer,:);
+%                 arrayLocalSampleDiff = double(arrayLocalSampleValues(:)) - numLoessVal;
+%                 
+%                 %if there are data points above/below the loess curve
+%                 arrayAboveLoessIndex = find(arrayLocalSampleDiff > 0);
+%                 arrayBelowLoessIndex = find(arrayLocalSampleDiff < 0);
+%                 
+%                 %determine the confidence interval "above" the loess curve
+%                 if ~isempty(arrayAboveLoessIndex),
+%                     [arrayTempFreq, arrayTempInt] = ecdf(arrayLocalSampleDiff(arrayAboveLoessIndex));
+%                     arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,1) = interp1(arrayTempFreq,arrayTempInt, numUniDirConfInt);
+%                 else
+%                     arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,1) = NaN;
+%                 end
+%                 
+%                 %determine the confidence interval "below" the loess curve
+%                 if ~isempty(arrayBelowLoessIndex),
+%                     [arrayTempFreq, arrayTempInt] = ecdf(arrayLocalSampleDiff(arrayBelowLoessIndex));
+%                     arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,2) = interp1(arrayTempFreq,arrayTempInt, (1-numUniDirConfInt));
+%                 else
+%                     arrayLoessCIBounds{iPatient, numNode, iTissueLayer}(iXPos,2) = NaN;
+%                 end
+%                 
+%             end
+% 
+%         end
+%  
+%     end
+%     
+%     disp([char(9) char(9) 'approx ' num2str((iNode/numOutputNodes)*100, '%03.1f') '% complete']);
+%     
+% end
 
  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  %  
 %% Create the Output Figures
@@ -1019,14 +1019,14 @@ for iOutputProtein = 1:numOutputProteins,
     
     
     %'other plot' positions (volume and surface plots)
-    arrayOneLocOtherImagePosition = [ 5/numFigWidth, (numFigHeight-98)/numFigHeight, 45/numFigWidth, 45/numFigHeight ];
+    arrayOneLocOtherImagePosition = [ 10/numFigWidth, (numFigHeight-98)/numFigHeight, 45/numFigWidth, 45/numFigHeight ];
     
-    arrayTwoLocOtherImagePositionSingle = [ 5/numFigWidth, (numFigHeight-103)/numFigHeight, 50/numFigWidth, 50/numFigHeight ];
-    arrayTwoLocOtherImagePositionDoubleOne = [ 5/numFigWidth, (numFigHeight-98)/numFigHeight, 45/numFigWidth, 45/numFigHeight ];
-    arrayTwoLocOtherImagePositionDoubleTwo = [ 5/numFigWidth, (numFigHeight-148)/numFigHeight, 45/numFigWidth, 45/numFigHeight ];
+    arrayTwoLocOtherImagePositionSingle = [ 10/numFigWidth, (numFigHeight-103)/numFigHeight, 45/numFigWidth, 45/numFigHeight ];
+    arrayTwoLocOtherImagePositionDoubleOne = [ 10/numFigWidth, (numFigHeight-98)/numFigHeight, 45/numFigWidth, 45/numFigHeight ];
+    arrayTwoLocOtherImagePositionDoubleTwo = [ 10/numFigWidth, (numFigHeight-148)/numFigHeight, 45/numFigWidth, 45/numFigHeight ];
     
-    arrayThreeLocOtherImagePositionOne = [ 5/numFigWidth, (numFigHeight-103)/numFigHeight, 50/numFigWidth, 50/numFigHeight ];
-    arrayThreeLocOtherImagePositionTwo = [ 5/numFigWidth, (numFigHeight-168)/numFigHeight, 50/numFigWidth, 50/numFigHeight ];
+    arrayThreeLocOtherImagePositionOne = [ 10/numFigWidth, (numFigHeight-103)/numFigHeight, 45/numFigWidth, 45/numFigHeight ];
+    arrayThreeLocOtherImagePositionTwo = [ 10/numFigWidth, (numFigHeight-168)/numFigHeight, 45/numFigWidth, 45/numFigHeight ];
     
     %initialise the output figure
     figOut = figure;
@@ -1051,7 +1051,7 @@ for iOutputProtein = 1:numOutputProteins,
     %overlay the borders of the 'other image' region, on the unzoomed image
     line([arrayOtherImgOneOrigXCoOrd(1), arrayOtherImgOneOrigXCoOrd(2)], [arrayOtherImgOneOrigYCoOrd(1), arrayOtherImgOneOrigYCoOrd(2)], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', ':');
     line([arrayOtherImgOneOrigXCoOrd(2), arrayOtherImgOneOrigXCoOrd(3)], [arrayOtherImgOneOrigYCoOrd(2), arrayOtherImgOneOrigYCoOrd(3)], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', ':');
-    line([arrayOtherImgOneOrigXCoOrd(3), arrayOtherImgOneOrigXCoOrd(4)], [arrayOtherImgOneOrigYCoOrd(3), arrayOtherImgOneOrigYCoOrd(4)], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
+    line([arrayOtherImgOneOrigXCoOrd(3), arrayOtherImgOneOrigXCoOrd(4)], [arrayOtherImgOneOrigYCoOrd(3), arrayOtherImgOneOrigYCoOrd(4)], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', ':');
     line([arrayOtherImgOneOrigXCoOrd(4), arrayOtherImgOneOrigXCoOrd(1)], [arrayOtherImgOneOrigYCoOrd(4), arrayOtherImgOneOrigYCoOrd(1)], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', ':');
     
     
@@ -1127,14 +1127,33 @@ for iOutputProtein = 1:numOutputProteins,
             colormap(jet);
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            text((arrayXRange(1) + arrayXRange(end))/2, arrayXRange(end)*1.35, 0, {'Approx.';'d_n_o_r_m'}, 'HorizontalAlignment', 'center');
-            zlabel('Pix. Int.');
-            %draw the orange line which maps to the representative image
-            line([min(arrayXRangeInterp) max(arrayXRangeInterp)], [max(arrayYRangeInterp) max(arrayYRangeInterp)], [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            %and label the sub-figure
-            text( min(arrayXRangeInterp), min(arrayYRangeInterp), max(imageSubAreaInterp(:))*1.5, 'C', ...
-                 'FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold' );
+            
+            arrayPos1CoOrds = [arrayOtherImgOneOrigXCoOrd(3) arrayOtherImgOneOrigYCoOrd(3)];
+            arrayPos2CoOrds = [arrayOtherImgOneOrigXCoOrd(4) arrayOtherImgOneOrigYCoOrd(4)];
+            numPos1MatchMinDist = 100;
+            numPos2MatchMinDist = 100;
+            numPos1Index = -1;
+            numPos2Index = -1;
+            for iSmpAnaObs = 1:length(arrayOutSampleAnalysis),
+                numXPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(1));
+                numYPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(2));
+                numPos1Dist = sqrt((arrayPos1CoOrds(1) - numXPos)^2 + (arrayPos1CoOrds(2) - numYPos)^2);
+                numPos2Dist = sqrt((arrayPos2CoOrds(1) - numXPos)^2 + (arrayPos2CoOrds(2) - numYPos)^2);
+                if numPos1Dist < numPos1MatchMinDist,
+                    numPos1MatchMinDist = numPos1Dist;
+                    numPos1Index = iSmpAnaObs;
+                end
+                if numPos2Dist < numPos2MatchMinDist,
+                    numPos2MatchMinDist = numPos2Dist;
+                    numPos2Index = iSmpAnaObs;
+                end
+            end
+            if (numPos1Index > 0) && (numPos2Index > 0),
+                set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(numPos1Index).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(numPos2Index).NormDist, '%3.2f')]}]);
+            else
+                disp('warning: fix this Joe');
+            end
+            zlabel({'Pixel';'intensity'}, 'FontSize', numSubFigLabelFontSize*0.5);
         
         %if the first 'other image' is a 3D image    
         elseif structOtherImageOne(iOutputProtein).dimensionality == 3,
@@ -1183,12 +1202,7 @@ for iOutputProtein = 1:numOutputProteins,
                 %turn on the cam light
                 camlight;
             end
-            
-            %draw the orange line which maps to the representative image
-            line( [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], ...
-                  [arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3) arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3)], ...
-                  [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            
+                        
             %control axis formatting
             box on;
             axis tight;
@@ -1200,13 +1214,63 @@ for iOutputProtein = 1:numOutputProteins,
             view(arrayOtherImageView{3,1});
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            xlabel('Approx. d_n_o_r_m');
-            hold off;
-            %and label the sub-figure
-            text(0,0,(arrayOtherImageCoOrds{iOutputProtein,1}(6)-arrayOtherImageCoOrds{iOutputProtein,1}(5))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
             
+            arrayPos1CoOrds = [arrayOtherImgOneOrigXCoOrd(3) arrayOtherImgOneOrigYCoOrd(3)];
+            arrayPos2CoOrds = [arrayOtherImgOneOrigXCoOrd(4) arrayOtherImgOneOrigYCoOrd(4)];
+            numPos1MatchMinDist = 100;
+            numPos2MatchMinDist = 100;
+            numPos1Index = -1;
+            numPos2Index = -1;
+            for iSmpAnaObs = 1:length(arrayOutSampleAnalysis),
+                numXPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(1));
+                numYPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(2));
+                numPos1Dist = sqrt((arrayPos1CoOrds(1) - numXPos)^2 + (arrayPos1CoOrds(2) - numYPos)^2);
+                numPos2Dist = sqrt((arrayPos2CoOrds(1) - numXPos)^2 + (arrayPos2CoOrds(2) - numYPos)^2);
+                if numPos1Dist < numPos1MatchMinDist,
+                    numPos1MatchMinDist = numPos1Dist;
+                    numPos1Index = iSmpAnaObs;
+                end
+                if numPos2Dist < numPos2MatchMinDist,
+                    numPos2MatchMinDist = numPos2Dist;
+                    numPos2Index = iSmpAnaObs;
+                end
+            end
+            if (numPos1Index > 0) && (numPos2Index > 0),
+                set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(numPos1Index).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(numPos2Index).NormDist, '%3.2f')]}]);
+            else
+                disp('warning: fix this Joe');
+            end
+            
+            hold off;
         end
+        
+        if iOutputProtein == (numOutputProteins-1),
+            %label the x-axis towards the bottom left
+            numFigXLabelXPos = arrayOneLocOtherImagePosition(1) + 0.05*arrayOneLocOtherImagePosition(3);
+            numFigXLabelYPos = arrayOneLocOtherImagePosition(2) - 0.05*arrayOneLocOtherImagePosition(4);
+            numFigXLabelHeight = 0.05;
+            numFigXLabelWidth = 0.10;
+            annotation( 'textbox', [ numFigXLabelXPos numFigXLabelYPos numFigXLabelWidth numFigXLabelHeight ], ...
+                        'String', {'Approximate';'d_n_o_r_m'}, 'FontSize', numSubFigLabelFontSize*0.5, ...
+                        'FontName', 'Arial', 'LineStyle', 'none');
+        else
+            %label the x-axis towards the bottom right
+            numFigXLabelXPos = arrayOneLocOtherImagePosition(1) + 0.55*arrayOneLocOtherImagePosition(3);
+            numFigXLabelYPos = arrayOneLocOtherImagePosition(2) + 0.01*arrayOneLocOtherImagePosition(4);
+            numFigXLabelHeight = 0.05;
+            numFigXLabelWidth = 0.10;
+            annotation( 'textbox', [ numFigXLabelXPos numFigXLabelYPos numFigXLabelWidth numFigXLabelHeight ], ...
+                        'String', {'Approximate';'d_n_o_r_m'}, 'FontSize', numSubFigLabelFontSize*0.5, ...
+                        'FontName', 'Arial', 'LineStyle', 'none');
+        end
+
+        
+        %and label the sub-figure
+        numSubFigLabelXPos = arrayOneLocOtherImagePosition(1) - 0.12*arrayOneLocOtherImagePosition(3);
+        numSubFigLabelYPos = arrayOneLocOtherImagePosition(2) + 0.8*arrayOneLocOtherImagePosition(4);
+        numFigSubLabelSize = 0.05;
+        annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'C', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
+
         
     %if two localisations are sampled, but only a single 'other image' is 
     % displayed    
@@ -1262,13 +1326,34 @@ for iOutputProtein = 1:numOutputProteins,
             colormap(jet);
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            zlabel('Pix. Int.');
-            xlabel('Approx. d_n_o_r_m');
-            %draw the orange line which maps to the representative image
-            line([min(arrayXRangeInterp) max(arrayXRangeInterp)], [max(arrayYRangeInterp) max(arrayYRangeInterp)], [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            %and label the sub-figure
-            text(min(arrayXRangeInterp),min(arrayYRangeInterp),max(imageSubAreaInterp(:))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+            
+            arrayPos1CoOrds = [arrayOtherImgOneOrigXCoOrd(3) arrayOtherImgOneOrigYCoOrd(3)];
+            arrayPos2CoOrds = [arrayOtherImgOneOrigXCoOrd(4) arrayOtherImgOneOrigYCoOrd(4)];
+            numPos1MatchMinDist = 100;
+            numPos2MatchMinDist = 100;
+            numPos1Index = -1;
+            numPos2Index = -1;
+            for iSmpAnaObs = 1:length(arrayOutSampleAnalysis),
+                numXPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(1));
+                numYPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(2));
+                numPos1Dist = sqrt((arrayPos1CoOrds(1) - numXPos)^2 + (arrayPos1CoOrds(2) - numYPos)^2);
+                numPos2Dist = sqrt((arrayPos2CoOrds(1) - numXPos)^2 + (arrayPos2CoOrds(2) - numYPos)^2);
+                if numPos1Dist < numPos1MatchMinDist,
+                    numPos1MatchMinDist = numPos1Dist;
+                    numPos1Index = iSmpAnaObs;
+                end
+                if numPos2Dist < numPos2MatchMinDist,
+                    numPos2MatchMinDist = numPos2Dist;
+                    numPos2Index = iSmpAnaObs;
+                end
+            end
+            if (numPos1Index > 0) && (numPos2Index > 0),
+                set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(numPos1Index).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(numPos2Index).NormDist, '%3.2f')]}]);
+            else
+                disp('warning: fix this Joe');
+            end
+            
+            zlabel({'Pixel';'intensity'}, 'FontSize', numSubFigLabelFontSize*0.5);
             
         %if the 'other image' is a 3D image   
         elseif structOtherImageOne(iOutputProtein).dimensionality == 3,
@@ -1318,10 +1403,6 @@ for iOutputProtein = 1:numOutputProteins,
                 camlight;
             end
             
-            %draw the orange line which maps to the representative image
-            line( [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], ...
-                  [arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3) arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3)], ...
-                  [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
             
             %control axis formatting
             box on;
@@ -1335,13 +1416,25 @@ for iOutputProtein = 1:numOutputProteins,
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            xlabel('Approx. d_n_o_r_m');
             hold off;
             
-            %and label the sub-figure
-            text(0,0,(arrayOtherImageCoOrds{iOutputProtein,1}(6)-arrayOtherImageCoOrds{iOutputProtein,1}(5))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
-            
         end
+        
+        %label the x-axis towards the bottom right
+        numFigXLabelXPos = arrayTwoLocOtherImagePositionSingle(1) + 0.55*arrayTwoLocOtherImagePositionSingle(3);
+        numFigXLabelYPos = arrayTwoLocOtherImagePositionSingle(2) - 0.1*arrayTwoLocOtherImagePositionSingle(4);
+        numFigXLabelHeight = 0.05;
+        numFigXLabelWidth = 0.10;
+        annotation( 'textbox', [ numFigXLabelXPos numFigXLabelYPos numFigXLabelWidth numFigXLabelHeight ], ...
+                    'String', {'Approximate';'d_n_o_r_m'}, 'FontSize', numSubFigLabelFontSize*0.5, ...
+                    'FontName', 'Arial', 'LineStyle', 'none');
+        
+        %and label the sub-figure
+        numSubFigLabelXPos = arrayTwoLocOtherImagePositionSingle(1) - 0.12*arrayTwoLocOtherImagePositionSingle(3);
+        numSubFigLabelYPos = arrayTwoLocOtherImagePositionSingle(2) + 0.8*arrayTwoLocOtherImagePositionSingle(4);
+        numFigSubLabelSize = 0.05;
+        annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'C', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
+
         
     %if two localisations are sampled, and two 'other images' are
     % displayed        
@@ -1398,15 +1491,35 @@ for iOutputProtein = 1:numOutputProteins,
             colormap(jet);
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            zlabel('Pix. Int.');
-            text((arrayXRange(1) + arrayXRange(end))/2, arrayYRange(end)*1.08, 0, {'Approx.';'d_n_o_r_m'}, 'HorizontalAlignment', 'center');
             
-            %draw the orange line which maps to the representative image
-            line([min(arrayXRangeInterp) max(arrayXRangeInterp)], [max(arrayYRangeInterp) max(arrayYRangeInterp)], [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            %and label the sub-figure
-            text(min(arrayXRangeInterp),min(arrayYRangeInterp),max(imageSubAreaInterp(:))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
-        
+            arrayPos1CoOrds = [arrayOtherImgOneOrigXCoOrd(3) arrayOtherImgOneOrigYCoOrd(3)];
+            arrayPos2CoOrds = [arrayOtherImgOneOrigXCoOrd(4) arrayOtherImgOneOrigYCoOrd(4)];
+            numPos1MatchMinDist = 100;
+            numPos2MatchMinDist = 100;
+            numPos1Index = -1;
+            numPos2Index = -1;
+            for iSmpAnaObs = 1:length(arrayOutSampleAnalysis),
+                numXPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(1));
+                numYPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(2));
+                numPos1Dist = sqrt((arrayPos1CoOrds(1) - numXPos)^2 + (arrayPos1CoOrds(2) - numYPos)^2);
+                numPos2Dist = sqrt((arrayPos2CoOrds(1) - numXPos)^2 + (arrayPos2CoOrds(2) - numYPos)^2);
+                if numPos1Dist < numPos1MatchMinDist,
+                    numPos1MatchMinDist = numPos1Dist;
+                    numPos1Index = iSmpAnaObs;
+                end
+                if numPos2Dist < numPos2MatchMinDist,
+                    numPos2MatchMinDist = numPos2Dist;
+                    numPos2Index = iSmpAnaObs;
+                end
+            end
+            if (numPos1Index > 0) && (numPos2Index > 0),
+                set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(numPos1Index).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(numPos2Index).NormDist, '%3.2f')]}]);
+            else
+                disp('warning: fix this Joe');
+            end
+            
+            zlabel({'Pixel';'intensity'}, 'FontSize', numSubFigLabelFontSize*0.5);
+            
         %if the first 'other image' is a 3D image  
         elseif structOtherImageOne(iOutputProtein).dimensionality == 3,
             %output the signal intensity isosurface volume plot
@@ -1455,12 +1568,7 @@ for iOutputProtein = 1:numOutputProteins,
                 %turn on the cam light
                 camlight;
             end
-            
-            %draw the orange line which maps to the representative image
-            line( [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], ...
-                  [arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3) arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3)], ...
-                  [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            
+                        
             %control axis formatting
             box on;
             axis tight;
@@ -1473,12 +1581,25 @@ for iOutputProtein = 1:numOutputProteins,
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            xlabel('Approx. d_n_o_r_m');
             hold off;
-            %and label the sub-figure
-            text(0,0,(arrayOtherImageCoOrds{iOutputProtein,1}(6)-arrayOtherImageCoOrds{iOutputProtein,1}(5))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
             
         end
+        
+        %label the x-axis towards the bottom right
+        numFigXLabelXPos = arrayTwoLocOtherImagePositionDoubleOne(1) + 0.55*arrayTwoLocOtherImagePositionDoubleOne(3);
+        numFigXLabelYPos = arrayTwoLocOtherImagePositionDoubleOne(2) - 0.1*arrayTwoLocOtherImagePositionDoubleOne(4);
+        numFigXLabelHeight = 0.05;
+        numFigXLabelWidth = 0.10;
+        annotation( 'textbox', [ numFigXLabelXPos numFigXLabelYPos numFigXLabelWidth numFigXLabelHeight ], ...
+                    'String', {'Approximate';'d_n_o_r_m'}, 'FontSize', numSubFigLabelFontSize*0.5, ...
+                    'FontName', 'Arial', 'LineStyle', 'none');
+        
+        %and label the sub-figure
+        numSubFigLabelXPos = arrayTwoLocOtherImagePositionDoubleOne(1) - 0.12*arrayTwoLocOtherImagePositionDoubleOne(3);
+        numSubFigLabelYPos = arrayTwoLocOtherImagePositionDoubleOne(2) + 0.8*arrayTwoLocOtherImagePositionDoubleOne(4);
+        numFigSubLabelSize = 0.05;
+        annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'C', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
+
         
         %plot the second 'other image'
         handleOtherImage = subplot('Position', arrayTwoLocOtherImagePositionDoubleTwo);
@@ -1532,14 +1653,34 @@ for iOutputProtein = 1:numOutputProteins,
             colormap(jet);
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            zlabel('Pix. Int.');
-            %draw the orange line which maps to the representative image
-            text((arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1))/2, (arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3))*1.35, 0, {'Approx.';'d_n_o_r_m'}, 'HorizontalAlignment', 'center');
-            %draw the orange line which maps to the representative image
-            line([min(arrayXRangeInterp) max(arrayXRangeInterp)], [max(arrayYRangeInterp) max(arrayYRangeInterp)], [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            %and label the sub-figure
-            text(min(arrayXRangeInterp),min(arrayYRangeInterp),max(imageSubAreaInterp(:))*1.5,'D','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+            
+            arrayPos1CoOrds = [arrayOtherImgOneOrigXCoOrd(3) arrayOtherImgOneOrigYCoOrd(3)];
+            arrayPos2CoOrds = [arrayOtherImgOneOrigXCoOrd(4) arrayOtherImgOneOrigYCoOrd(4)];
+            numPos1MatchMinDist = 100;
+            numPos2MatchMinDist = 100;
+            numPos1Index = -1;
+            numPos2Index = -1;
+            for iSmpAnaObs = 1:length(arrayOutSampleAnalysis),
+                numXPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(1));
+                numYPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(2));
+                numPos1Dist = sqrt((arrayPos1CoOrds(1) - numXPos)^2 + (arrayPos1CoOrds(2) - numYPos)^2);
+                numPos2Dist = sqrt((arrayPos2CoOrds(1) - numXPos)^2 + (arrayPos2CoOrds(2) - numYPos)^2);
+                if numPos1Dist < numPos1MatchMinDist,
+                    numPos1MatchMinDist = numPos1Dist;
+                    numPos1Index = iSmpAnaObs;
+                end
+                if numPos2Dist < numPos2MatchMinDist,
+                    numPos2MatchMinDist = numPos2Dist;
+                    numPos2Index = iSmpAnaObs;
+                end
+            end
+            if (numPos1Index > 0) && (numPos2Index > 0),
+                set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(numPos1Index).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(numPos2Index).NormDist, '%3.2f')]}]);
+            else
+                disp('warning: fix this Joe');
+            end
+            
+            zlabel({'Pixel';'intensity'}, 'FontSize', numSubFigLabelFontSize*0.5);
             
         %if the second 'other image' is a 3D image  
         elseif structOtherImageTwo(iOutputProtein).dimensionality == 3,
@@ -1588,12 +1729,7 @@ for iOutputProtein = 1:numOutputProteins,
                 %turn on the cam light
                 camlight;
             end
-            
-            %draw the orange line which maps to the representative image
-            line( [0 arrayOtherImageCoOrds{iOutputProtein,2}(2)-arrayOtherImageCoOrds{iOutputProtein,2}(1)], ...
-                  [arrayOtherImageCoOrds{iOutputProtein,2}(4)-arrayOtherImageCoOrds{iOutputProtein,2}(3) arrayOtherImageCoOrds{iOutputProtein,2}(4)-arrayOtherImageCoOrds{iOutputProtein,2}(3)], ...
-                  [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            
+                        
             %control axis formatting
             box on;
             axis tight;
@@ -1606,12 +1742,25 @@ for iOutputProtein = 1:numOutputProteins,
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,2}(2)-arrayOtherImageCoOrds{iOutputProtein,2}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            text((arrayOtherImageCoOrds{iOutputProtein,2}(2)-arrayOtherImageCoOrds{iOutputProtein,2}(1))/2, (arrayOtherImageCoOrds{iOutputProtein,2}(4)-arrayOtherImageCoOrds{iOutputProtein,2}(3))*1.35, 0, {'Approx.';'d_n_o_r_m'}, 'HorizontalAlignment', 'center');
             hold off;
-            %and label the sub-figure
-            text(0,0,(arrayOtherImageCoOrds{iOutputProtein,2}(6)-arrayOtherImageCoOrds{iOutputProtein,2}(5))*1.8,'D','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
             
         end
+        
+        %label the x-axis towards the bottom right
+        numFigXLabelXPos = arrayTwoLocOtherImagePositionDoubleTwo(1) + 0.55*arrayTwoLocOtherImagePositionDoubleTwo(3);
+        numFigXLabelYPos = arrayTwoLocOtherImagePositionDoubleTwo(2) - 0.0*arrayTwoLocOtherImagePositionDoubleTwo(4);
+        numFigXLabelHeight = 0.05;
+        numFigXLabelWidth = 0.10;
+        annotation( 'textbox', [ numFigXLabelXPos numFigXLabelYPos numFigXLabelWidth numFigXLabelHeight ], ...
+                    'String', {'Approximate';'d_n_o_r_m'}, 'FontSize', numSubFigLabelFontSize*0.5, ...
+                    'FontName', 'Arial', 'LineStyle', 'none');
+                
+        %and label the sub-figure
+        numSubFigLabelXPos = arrayTwoLocOtherImagePositionDoubleTwo(1) - 0.12*arrayTwoLocOtherImagePositionDoubleTwo(3);
+        numSubFigLabelYPos = arrayTwoLocOtherImagePositionDoubleTwo(2) + 0.8*arrayTwoLocOtherImagePositionDoubleTwo(4);
+        numFigSubLabelSize = 0.05;
+        annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'D', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
+
         
     %if three localisations are sampled, there are always two 'other 
     % images' displayed because otherwise there's a bunch of white space   
@@ -1667,13 +1816,34 @@ for iOutputProtein = 1:numOutputProteins,
             colormap(jet);
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            text((arrayXRange(end) + arrayXRange(1))/2, arrayYRange(end)*1.35, 0, {'Approx.';'d_n_o_r_m'}, 'HorizontalAlignment', 'center');
-            zlabel('Pix. Int.');
-            %draw the orange line which maps to the representative image
-            line([min(arrayXRangeInterp) max(arrayXRangeInterp)], [max(arrayYRangeInterp) max(arrayYRangeInterp)], [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            %and label the sub-figure
-            text(min(arrayXRangeInterp),min(arrayYRangeInterp),max(imageSubAreaInterp(:))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+            
+            arrayPos1CoOrds = [arrayOtherImgOneOrigXCoOrd(3) arrayOtherImgOneOrigYCoOrd(3)];
+            arrayPos2CoOrds = [arrayOtherImgOneOrigXCoOrd(4) arrayOtherImgOneOrigYCoOrd(4)];
+            numPos1MatchMinDist = 100;
+            numPos2MatchMinDist = 100;
+            numPos1Index = -1;
+            numPos2Index = -1;
+            for iSmpAnaObs = 1:length(arrayOutSampleAnalysis),
+                numXPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(1));
+                numYPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(2));
+                numPos1Dist = sqrt((arrayPos1CoOrds(1) - numXPos)^2 + (arrayPos1CoOrds(2) - numYPos)^2);
+                numPos2Dist = sqrt((arrayPos2CoOrds(1) - numXPos)^2 + (arrayPos2CoOrds(2) - numYPos)^2);
+                if numPos1Dist < numPos1MatchMinDist,
+                    numPos1MatchMinDist = numPos1Dist;
+                    numPos1Index = iSmpAnaObs;
+                end
+                if numPos2Dist < numPos2MatchMinDist,
+                    numPos2MatchMinDist = numPos2Dist;
+                    numPos2Index = iSmpAnaObs;
+                end
+            end
+            if (numPos1Index > 0) && (numPos2Index > 0),
+                set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(numPos1Index).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(numPos2Index).NormDist, '%3.2f')]}]);
+            else
+                disp('warning: fix this Joe');
+            end
+            
+            zlabel({'Pixel';'intensity'}, 'FontSize', numSubFigLabelFontSize*0.5);
             
         %if the first 'other image' is a 3D image
         elseif structOtherImageOne(iOutputProtein).dimensionality == 3,
@@ -1722,12 +1892,7 @@ for iOutputProtein = 1:numOutputProteins,
                 %turn on the cam light
                 camlight;
             end
-            
-            %draw the orange line which maps to the representative image
-            line( [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], ...
-                  [arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3) arrayOtherImageCoOrds{iOutputProtein,1}(4)-arrayOtherImageCoOrds{iOutputProtein,1}(3)], ...
-                  [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            
+                        
             %control axis formatting
             box on;
             axis tight;
@@ -1739,15 +1904,27 @@ for iOutputProtein = 1:numOutputProteins,
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            xlabel('Approx. d_n_o_r_m');
             set(gca, 'DataAspectRatio', [1 1 0.6]);
             hold off;
-            %and label the sub-figure
-            text(0,0,(arrayOtherImageCoOrds{iOutputProtein,1}(6)-arrayOtherImageCoOrds{iOutputProtein,1}(5))*1.5,'C','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
-            
         end
         
+        %label the x-axis towards the bottom right
+        numFigXLabelXPos = arrayThreeLocOtherImagePositionOne(1) + 0.55*arrayThreeLocOtherImagePositionOne(3);
+        numFigXLabelYPos = arrayThreeLocOtherImagePositionOne(2) - 0.1*arrayThreeLocOtherImagePositionOne(4);
+        numFigXLabelHeight = 0.05;
+        numFigXLabelWidth = 0.10;
+        annotation( 'textbox', [ numFigXLabelXPos numFigXLabelYPos numFigXLabelWidth numFigXLabelHeight ], ...
+                    'String', {'Approximate';'d_n_o_r_m'}, 'FontSize', numSubFigLabelFontSize*0.5, ...
+                    'FontName', 'Arial', 'LineStyle', 'none');
         
+        
+        %and label the sub-figure
+        numSubFigLabelXPos = arrayThreeLocOtherImagePositionOne(1) - 0.12*arrayThreeLocOtherImagePositionOne(3);
+        numSubFigLabelYPos = arrayThreeLocOtherImagePositionOne(2) + 0.8*arrayThreeLocOtherImagePositionOne(4);
+        numFigSubLabelSize = 0.05;
+        annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'C', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
+
+                
         %plot the second 'other image'
         handleOtherImage = subplot('Position', arrayThreeLocOtherImagePositionTwo);
         
@@ -1798,13 +1975,34 @@ for iOutputProtein = 1:numOutputProteins,
             %specify the surface intensity color map
             colormap(jet);
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
-            xlabel('Approx. d_n_o_r_m');
-            zlabel('Pix. Int.');
-            %draw the orange line which maps to the representative image
-            line([min(arrayXRangeInterp) max(arrayXRangeInterp)], [max(arrayYRangeInterp) max(arrayYRangeInterp)], [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            %and label the sub-figure
-            text(min(arrayXRangeInterp),min(arrayYRangeInterp),max(imageSubAreaInterp(:))*1.5,'D','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+            
+            arrayPos1CoOrds = [arrayOtherImgOneOrigXCoOrd(3) arrayOtherImgOneOrigYCoOrd(3)];
+            arrayPos2CoOrds = [arrayOtherImgOneOrigXCoOrd(4) arrayOtherImgOneOrigYCoOrd(4)];
+            numPos1MatchMinDist = 100;
+            numPos2MatchMinDist = 100;
+            numPos1Index = -1;
+            numPos2Index = -1;
+            for iSmpAnaObs = 1:length(arrayOutSampleAnalysis),
+                numXPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(1));
+                numYPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(2));
+                numPos1Dist = sqrt((arrayPos1CoOrds(1) - numXPos)^2 + (arrayPos1CoOrds(2) - numYPos)^2);
+                numPos2Dist = sqrt((arrayPos2CoOrds(1) - numXPos)^2 + (arrayPos2CoOrds(2) - numYPos)^2);
+                if numPos1Dist < numPos1MatchMinDist,
+                    numPos1MatchMinDist = numPos1Dist;
+                    numPos1Index = iSmpAnaObs;
+                end
+                if numPos2Dist < numPos2MatchMinDist,
+                    numPos2MatchMinDist = numPos2Dist;
+                    numPos2Index = iSmpAnaObs;
+                end
+            end
+            if (numPos1Index > 0) && (numPos2Index > 0),
+                set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(numPos1Index).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(numPos2Index).NormDist, '%3.2f')]}]);
+            else
+                disp('warning: fix this Joe');
+            end
+            
+            zlabel({'Pixel';'intensity'}, 'FontSize', numSubFigLabelFontSize*0.5);
             
         %if the second 'other image' is a 3D image   
         elseif structOtherImageTwo(iOutputProtein).dimensionality == 3,
@@ -1854,11 +2052,6 @@ for iOutputProtein = 1:numOutputProteins,
                 camlight;
             end
             
-            %draw the orange line which maps to the representative image
-            line( [0 arrayOtherImageCoOrds{iOutputProtein,2}(2)-arrayOtherImageCoOrds{iOutputProtein,2}(1)], ...
-                  [arrayOtherImageCoOrds{iOutputProtein,2}(4)-arrayOtherImageCoOrds{iOutputProtein,2}(3) arrayOtherImageCoOrds{iOutputProtein,2}(4)-arrayOtherImageCoOrds{iOutputProtein,2}(3)], ...
-                  [0 0], 'LineWidth', numOverlayBorderWidth, 'Color', [1 0.5 0], 'LineStyle', '-');
-            
             %control axis formatting
             box on;
             axis tight;
@@ -1873,13 +2066,26 @@ for iOutputProtein = 1:numOutputProteins,
                      'ZTick', [], 'ZTickLabel', []);
             set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], ...
                      'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}] );
-            xlabel('Approx. d_n_o_r_m');
             hold off;
-            %and label the sub-figure
-            text( 0, 0, (arrayOtherImageCoOrds{iOutputProtein,1}(6)-arrayOtherImageCoOrds{iOutputProtein,1}(5))*1.5, 'D', ...
-                  'FontSize', numSubFigLabelFontSize, 'Color' , 'k', 'FontWeight', 'bold' );
             
         end
+        
+        
+        %label the x-axis towards the bottom right
+        numFigXLabelXPos = arrayThreeLocOtherImagePositionTwo(1) + 0.55*arrayThreeLocOtherImagePositionTwo(3);
+        numFigXLabelYPos = arrayThreeLocOtherImagePositionTwo(2) - 0.1*arrayThreeLocOtherImagePositionTwo(4);
+        numFigXLabelHeight = 0.05;
+        numFigXLabelWidth = 0.10;
+        annotation( 'textbox', [ numFigXLabelXPos numFigXLabelYPos numFigXLabelWidth numFigXLabelHeight ], ...
+                    'String', {'Approximate';'d_n_o_r_m'}, 'FontSize', numSubFigLabelFontSize*0.5, ...
+                    'FontName', 'Arial', 'LineStyle', 'none');
+        
+        %and label the sub-figure
+        numSubFigLabelXPos = arrayThreeLocOtherImagePositionTwo(1) - 0.12*arrayThreeLocOtherImagePositionTwo(3);
+        numSubFigLabelYPos = arrayThreeLocOtherImagePositionTwo(2) + 0.8*arrayThreeLocOtherImagePositionTwo(4);
+        numFigSubLabelSize = 0.05;
+        annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'D', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
+
         
     end
 
@@ -2020,7 +2226,7 @@ for iOutputProtein = 1:numOutputProteins,
         %set the axes
         axis([0 numSpatialBins, arrayTempMin*1.2 arrayTempMax*1.2]);
         %label the axes/tick marks
-        text(  numSpatialBins*0.75, arrayTempMax*0.85, {'\bfPlasma';'\bfMembrane'},  'HorizontalAlignment', 'center',  'FontSize', numPlotFontSizeTitle  );
+        text(  numSpatialBins*0.75, arrayTempMax*0.85, {'\bfPlasma';'\bfmembrane'},  'HorizontalAlignment', 'center',  'FontSize', numPlotFontSizeTitle  );
         %specify the x-range with respect to the normalised distance
         set(gca, 'XTick', arrayLayerBoundaries, 'XTickLabel', [0 1 2 3]);
         %specify the y-range with respect to the mean/standard deviation
@@ -2043,14 +2249,19 @@ for iOutputProtein = 1:numOutputProteins,
         ylabel('I_s_,_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [-4.5 (arrayTempMax+arrayTempMin)/2 1]);
         %label the figure sub-plot dependent upon other figures that have
         % been plotted
+        
+        %and label the sub-figure
+        numSubFigLabelXPos = arrayPlot1Position(1) - 0.35*arrayPlot1Position(3);
+        numSubFigLabelYPos = arrayPlot1Position(2) + 0.90*arrayPlot1Position(4);
+        numFigSubLabelSize = 0.05;
         if (  ( numLocalisationsForProtein == 1 ) ),
-            text(-7.5,arrayTempMax*0.95,'D','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+            annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'D', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
         elseif (numLocalisationsForProtein == 2) && (length(arrayOtherImageTypes{iOutputProtein}) == 1),
-            text(-7.5,arrayTempMax*0.95,'D','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+            annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'D', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
         elseif (numLocalisationsForProtein == 2) && (length(arrayOtherImageTypes{iOutputProtein}) == 2),
-            text(-7.5,arrayTempMax*0.95,'E','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+            annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'E', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
         elseif numLocalisationsForProtein == 3,
-            text(-7.5,arrayTempMax*0.95,'E','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+            annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'E', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
         end
 
         %the cytoplasmic localisation is always sampled, plot it second
@@ -2205,17 +2416,20 @@ for iOutputProtein = 1:numOutputProteins,
             text(  numSpatialBins*0.75, arrayTempMax*0.85, '\bfCytoplasm',  'HorizontalAlignment', 'center',  'FontSize', numPlotFontSizeTitle  );
             xlabel('d_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [14 arrayTempMin*1.35 1]);
             ylabel('I_s_,_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [-4.5 (arrayTempMax+arrayTempMin)/2 1]);
-            %label the figure sub-plot dependent upon other figures that 
-            % have been plotted
+            %label the figure subplot
+            numSubFigLabelXPos = arrayPlot2Position(1) - 0.35*arrayPlot2Position(3);
+            numSubFigLabelYPos = arrayPlot2Position(2) + 0.90*arrayPlot2Position(4);
+            numFigSubLabelSize = 0.05;
             if (  ( numLocalisationsForProtein == 1 ) ),
-                text(-7.5,arrayTempMax*0.95,'E','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+                annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'E', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
             elseif (numLocalisationsForProtein == 2) && (length(arrayOtherImageTypes{iOutputProtein}) == 1),
-                text(-7.5,arrayTempMax*0.95,'E','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+                annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'E', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
             elseif (numLocalisationsForProtein == 2) && (length(arrayOtherImageTypes{iOutputProtein}) == 2),
-                text(-7.5,arrayTempMax*0.95,'F','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+                annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'F', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
             elseif numLocalisationsForProtein == 3,
-                text(-7.5,arrayTempMax*0.95,'F','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+                annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'F', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
             end
+
 
             %plot the nuclear localisation (if it exists)
             if ~(arrayGroupedNodes(iOutputProtein,2) == 0),
@@ -2379,9 +2593,12 @@ for iOutputProtein = 1:numOutputProteins,
                 xlabel('d_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [14 arrayTempMin*1.35 1]);
                 ylabel('I_s_,_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [-4.5 (arrayTempMax+arrayTempMin)/2 1]);
 
-                %label the figure sub-plot dependent upon other figures
-                % that have been plotted
-                text(-7.5,arrayTempMax*0.95,'G','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+                %and label the sub-figure
+                numSubFigLabelXPos = arrayPlot3Position(1) - 0.35*arrayPlot3Position(3);
+                numSubFigLabelYPos = arrayPlot3Position(2) + 0.90*arrayPlot3Position(4);
+                numFigSubLabelSize = 0.05;
+                annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'G', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
+                
 
             end
 
@@ -2548,16 +2765,19 @@ for iOutputProtein = 1:numOutputProteins,
             text(  numSpatialBins*0.75, arrayTempMax*0.85, '\bfCytoplasm',  'HorizontalAlignment', 'center',  'FontSize', numPlotFontSizeTitle  );
             xlabel('d_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [14 arrayTempMin*1.35 1]);
             ylabel('I_s_,_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [-4.5 (arrayTempMax+arrayTempMin)/2 1]);
-            %label the figure sub-plot dependent upon other figures that 
-            % have been plotted
+
+            %and label the sub-figure
+            numSubFigLabelXPos = arrayPlot1Position(1) - 0.35*arrayPlot1Position(3);
+            numSubFigLabelYPos = arrayPlot1Position(2) + 0.90*arrayPlot1Position(4);
+            numFigSubLabelSize = 0.05;
             if (  ( numLocalisationsForProtein == 1 ) ),
-                text(-7.5,arrayTempMax*0.95,'D','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+                annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'D', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
             elseif (numLocalisationsForProtein == 2) && (length(arrayOtherImageTypes{iOutputProtein}) == 1),
-                text(-7.5,arrayTempMax*0.95,'D','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+                annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'D', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
             elseif (numLocalisationsForProtein == 2) && (length(arrayOtherImageTypes{iOutputProtein}) == 2),
-                text(-7.5,arrayTempMax*0.95,'E','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+                annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'E', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
             elseif numLocalisationsForProtein == 3,
-                text(-7.5,arrayTempMax*0.95,'E','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+                annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'E', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
             end
 
             %plot the nuclear localisation (if it exists)
@@ -2723,15 +2943,21 @@ for iOutputProtein = 1:numOutputProteins,
                 ylabel('I_s_,_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [-4.5 (arrayTempMax+arrayTempMin)/2 1]);
                 %label the figure sub-plot dependent upon other figures
                 % that have been plotted
+                
+                %and label the sub-figure
+                numSubFigLabelXPos = arrayPlot2Position(1) - 0.35*arrayPlot2Position(3);
+                numSubFigLabelYPos = arrayPlot2Position(2) + 0.90*arrayPlot2Position(4);
+                numFigSubLabelSize = 0.05;
                 if (  ( numLocalisationsForProtein == 1 ) ),
-                    text(-7.5,arrayTempMax*0.95,'E','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+                    annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'E', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
                 elseif (numLocalisationsForProtein == 2) && (length(arrayOtherImageTypes{iOutputProtein}) == 1),
-                    text(-7.5,arrayTempMax*0.95,'E','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+                    annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'E', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
                 elseif (numLocalisationsForProtein == 2) && (length(arrayOtherImageTypes{iOutputProtein}) == 2),
-                    text(-7.5,arrayTempMax*0.95,'F','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+                    annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'F', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
                 elseif numLocalisationsForProtein == 3,
-                    text(-7.5,arrayTempMax*0.95,'F','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+                    annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'F', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
                 end
+
 
             end
 
@@ -2818,9 +3044,13 @@ for iOutputProtein = 1:numOutputProteins,
         xlabel('d_n_o_r_m','FontSize',numPlotFontSizeTitle, 'Position', [14 arrayTempMin-(arrayTempMax - arrayTempMin)*0.1 1]);
         ylabel('(I_s_,_c_y_t_o)/(I_s_,_n_u_c)','FontSize',numPlotFontSizeTitle, 'Position', [-4.5 (arrayTempMax+arrayTempMin)/2 1]);
         
-        %label the figure panel
-        text(-7.5,arrayTempMax*0.95,'F','FontSize',numSubFigLabelFontSize,'Color','k', 'FontWeight', 'bold');
+        %and label the sub-figure
+        numSubFigLabelXPos = arrayPlot3Position(1) - 0.35*arrayPlot3Position(3);
+        numSubFigLabelYPos = arrayPlot3Position(2) + 0.90*arrayPlot3Position(4);
+        numFigSubLabelSize = 0.05;
+        annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'F', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
         
+
     end
                   
     %save the figure
