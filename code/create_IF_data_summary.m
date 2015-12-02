@@ -584,8 +584,8 @@ for iOutputProtein = 1:numOutputProteins,
     numLocalisationsForProtein = length(find(arrayGroupedNodes(iOutputProtein,:)));
    
     %determine the folder path for the cytoplasmic sampled data 
-    stringRepImageDataFolder = [ strProcDataFolder arrayOutputProtFolders{iOutputProtein} strFolderSep 'Pat_' num2str(arrayPatientToDisplay(iOutputProtein)) strFolderSep ];
-    stringRepImageCytoDataFolder = [ stringRepImageDataFolder 'C' strFolderSep ];
+    stringRepImageSegDataFolder = [ strProcDataFolder arrayOutputProtFolders{iOutputProtein} strFolderSep 'Pat_' num2str(arrayPatientToDisplay(iOutputProtein)) strFolderSep ];
+    stringRepImageCytoDataFolder = [ stringRepImageSegDataFolder 'C' strFolderSep ];
     
     %extract the cytoplasmic sampled data    
     structSampleLocData = loadSampLocs(stringRepImageCytoDataFolder, '.mat');
@@ -629,11 +629,28 @@ for iOutputProtein = 1:numOutputProteins,
     stringInputImagePath(numImagePathZPosition+3:numImagePathZPosition+4) = stringOutputZ;
     imageRep = imread(stringInputImagePath);
        
+    %load the full set of tissue segmentation data
+    [ ~, cellImageLayers, cellImageBasalLamina, cellImageBoundaryOne, cellImageBoundaryTwo, cellImageOuterBoundary ] = ...
+        loadImageStackAsSparse3DCellArrays( arrayZSlicesSampled, stringSpecificImageDataFolder, stringRepImageSegDataFolder);
+
+    arrayZPosAbsDiff = abs(double(arrayZSlicesSampled) - double(arrayRepImageZ{iOutputProtein}));
+    numClosestSegZPosIndex = find((arrayZPosAbsDiff == min(arrayZPosAbsDiff)), 1, 'first');
+    numClosestSegZPos = arrayZSlicesSampled(numClosestSegZPosIndex);
+    imageBasLam = cellImageBasalLamina{numClosestSegZPos};
+    imageLayers = cellImageLayers{numClosestSegZPos};
+    imageBoundOne = cellImageBoundaryOne{numClosestSegZPos};
+    imageBoundTwo = cellImageBoundaryTwo{numClosestSegZPos};
+    imageOuterBound = cellImageOuterBoundary{numClosestSegZPos};
     
     %rotate the representative image by the angle specified at the
     % beginning of this script
     %NB: this takes the input image as an array of doubles
     [ imageRepRot, ~ ] = rotate_image( arrayRepImageRotate(iOutputProtein), double(imageRep), [1; 1] );
+    [ imageBasLamRot, ~ ] = rotate_image( arrayRepImageRotate(iOutputProtein), double(imageBasLam), [1; 1] );
+    [ imageLayersRot, ~ ] = rotate_image( arrayRepImageRotate(iOutputProtein), double(imageLayers), [1; 1] );
+    [ imageBoundOneRot, ~ ] = rotate_image( arrayRepImageRotate(iOutputProtein), double(imageBoundOne), [1; 1] );
+    [ imageBoundTwoRot, ~ ] = rotate_image( arrayRepImageRotate(iOutputProtein), double(imageBoundTwo), [1; 1] );
+    [ imageOuterBoundRot, ~ ] = rotate_image( arrayRepImageRotate(iOutputProtein), double(imageOuterBound), [1; 1] );
     
     %convert back to an 8-bit unsigned integer
     imageRepRot = uint8(imageRepRot);
@@ -671,8 +688,8 @@ for iOutputProtein = 1:numOutputProteins,
     imRepCropOut(numScaleBarVertStart:numScaleBarVertStop, numScaleBarHorStart:numScaleBarHorStop, :) = 255;
     
     %load the 'other image', as specified at the start of this script
-    structOtherImageOne = struct('dimensionality', {}, 'arrayXCoOrds', {}, 'arrayYCoOrds', {}, 'arrayPixelInt', {}, 'fv1', {}, 'fv2', {}, 'fv3', {});
-    structOtherImageTwo = struct('dimensionality', {}, 'arrayXCoOrds', {}, 'arrayYCoOrds', {}, 'arrayPixelInt', {}, 'fv1', {}, 'fv2', {}, 'fv3', {});
+    structOtherImageOne = struct('dimensionality', {}, 'arrayXCoOrds', {}, 'arrayYCoOrds', {}, 'arrayNormDist', {}, 'arrayPixelInt', {}, 'fv1', {}, 'fv2', {}, 'fv3', {});
+    structOtherImageTwo = struct('dimensionality', {}, 'arrayXCoOrds', {}, 'arrayYCoOrds', {}, 'arrayNormDist', {}, 'arrayPixelInt', {}, 'fv1', {}, 'fv2', {}, 'fv3', {});
     
     if (size(arrayOtherImageTypes{iOutputProtein},2) == 1),
         %extract information into structOtherImageOne only
@@ -682,6 +699,117 @@ for iOutputProtein = 1:numOutputProteins,
             
             %perform the rotation of the original image
             [imageSurf,~] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageRepRot), [1; 1] );
+            
+            %perform further rotation of the pre-rotated boundary images to
+            % match the 'other image'
+            [ imageBasLamRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageBasLamRot), [1; 1] );
+            [ imageLayersRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageLayersRot), [1; 1] );
+            [ imageBoundOneRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageBoundOneRot), [1; 1] );
+            [ imageBoundTwoRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageBoundTwoRot), [1; 1] );
+            [ imageOuterBoundRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageOuterBoundRot), [1; 1] );
+
+            arrayBotLeftCoOrds = [arrayOtherImageCoOrds{iOutputProtein,1}(1); arrayOtherImageCoOrds{iOutputProtein,1}(4)]; % [x; y] for dist
+            arrayBotRightCoOrds = [arrayOtherImageCoOrds{iOutputProtein,1}(2); arrayOtherImageCoOrds{iOutputProtein,1}(4)];
+            
+            numBotLeftLayer = imageLayersRotForOther(arrayBotLeftCoOrds(2), arrayBotLeftCoOrds(1)); %row column for image coords
+            numBotRightLayer = imageLayersRotForOther(arrayBotRightCoOrds(2), arrayBotRightCoOrds(1));
+            
+            if numBotLeftLayer == 0,
+                imageLeftLowerBound = imageBasLamRotForOther;
+                imageLeftUpperBound = imageBoundOneRotForOther; 
+                numLeftInterpValMult = -1;
+                numLeftNormDistBase = 0;
+            elseif numBotLeftLayer == 1,
+                imageLeftLowerBound = imageBasLamRotForOther;
+                imageLeftUpperBound = imageBoundOneRotForOther;
+                numLeftInterpValMult = 1;
+                numLeftNormDistBase = 0;
+            elseif numBotLeftLayer == 2,
+                imageLeftLowerBound = imageBoundOneRotForOther;
+                imageLeftUpperBound = imageBoundTwoRotForOther;
+                numLeftInterpValMult = 1;
+                numLeftNormDistBase = 1;
+            elseif numBotLeftLayer == 3,
+                imageLeftLowerBound = imageBoundTwoRotForOther;
+                imageLeftUpperBound = imageOuterBoundRotForOther;
+                numLeftInterpValMult = 1;
+                numLeftNormDistBase = 2;
+            else
+                disp(['warning: fix this Joe']);
+            end
+            
+            if numBotRightLayer == 0,
+                imageRightLowerBound = imageBasLamRotForOther;
+                imageRightUpperBound = imageBoundOneRotForOther; 
+                numRightInterpValMult = -1;
+                numRightNormDistBase = 0;
+            elseif numBotRightLayer == 1,
+                imageRightLowerBound = imageBasLamRotForOther;
+                imageRightUpperBound = imageBoundOneRotForOther;
+                numRightInterpValMult = 1;
+                numRightNormDistBase = 0;
+            elseif numBotRightLayer == 2,
+                imageRightLowerBound = imageBoundOneRotForOther;
+                imageRightUpperBound = imageBoundTwoRotForOther;
+                numRightInterpValMult = 1;
+                numRightNormDistBase = 1;
+            elseif numBotRightLayer == 3,
+                imageRightLowerBound = imageBoundTwoRotForOther;
+                imageRightUpperBound = imageOuterBoundRotForOther;
+                numRightInterpValMult = 1;
+                numRightNormDistBase = 2;
+            else
+                disp(['warning: fix this Joe']);
+            end
+            
+            %extract the pixel co-ordinates
+            [arrayLeftLowerY, arrayLeftLowerX] = find(imageLeftLowerBound);
+            [arrayLeftUpperY, arrayLeftUpperX] = find(imageLeftUpperBound);
+            [arrayRightLowerY, arrayRightLowerX] = find(imageRightLowerBound);
+            [arrayRightUpperY, arrayRightUpperX] = find(imageRightUpperBound);
+            
+            
+            %create the output vector
+            structOtherImageOne(iOutputProtein).arrayNormDist = zeros(1,2,'double');
+
+            arrayCombinedLeftLowerPix = [ arrayBotLeftCoOrds(1) arrayLeftLowerX'; ...
+                                          arrayBotLeftCoOrds(2) arrayLeftLowerY' ];
+
+            arrayCombinedLeftUpperPix = [ arrayBotLeftCoOrds(1) arrayLeftUpperX'; ...
+                                          arrayBotLeftCoOrds(2) arrayLeftUpperY' ]; 
+                                      
+            arrayCombinedRightLowerPix = [ arrayBotRightCoOrds(1) arrayRightLowerX'; ...
+                                           arrayBotRightCoOrds(2) arrayRightLowerY' ];
+
+            arrayCombinedRightUpperPix = [ arrayBotRightCoOrds(1) arrayRightUpperX'; ...
+                                           arrayBotRightCoOrds(2) arrayRightUpperY' ]; 
+            %FINDME
+            arrayFullLeftLowerDistMatrix = dist(arrayCombinedLeftLowerPix);
+            arrayFullLeftUpperDistMatrix = dist(arrayCombinedLeftUpperPix);
+            arrayFullRightLowerDistMatrix = dist(arrayCombinedRightLowerPix);
+            arrayFullRightUpperDistMatrix = dist(arrayCombinedRightUpperPix);
+
+            %extract the section of the distance matrix which is of interest
+            arrayLeftDistToLowerBound = arrayFullLeftLowerDistMatrix(1,2:end);
+            arrayRightDistToLowerBound = arrayFullRightLowerDistMatrix(1,2:end);
+            numBotLeftLowerDist = min(arrayLeftDistToLowerBound);
+            numBotRightLowerDist = min(arrayRightDistToLowerBound);
+
+            %extract the section of the distance matrix which is of interest
+            arrayLeftDistToUpperBound = arrayFullLeftUpperDistMatrix(1,2:end);
+            arrayRightDistToUpperBound = arrayFullRightUpperDistMatrix(1,2:end);
+            numBotLeftUpperDist = min(arrayLeftDistToUpperBound);
+            numBotRightUpperDist = min(arrayRightDistToUpperBound);
+            
+            numInterpBotLeftDist = numBotLeftLowerDist/(numBotLeftLowerDist + numBotLeftUpperDist);
+            numInterpBotRightDist = numBotRightLowerDist/(numBotRightLowerDist + numBotRightUpperDist);
+            
+            numBotLeftNormDist = numInterpBotLeftDist*numLeftInterpValMult + numLeftNormDistBase;
+            numBotRightNormDist = numInterpBotRightDist*numRightInterpValMult + numRightNormDistBase;
+            
+            structOtherImageOne(iOutputProtein).arrayNormDist(1) = numBotLeftNormDist;
+            structOtherImageOne(iOutputProtein).arrayNormDist(2) = numBotRightNormDist;
+            
             %convert the format back to uint8
             imageSurf = uint8(imageSurf);
             
@@ -739,6 +867,116 @@ for iOutputProtein = 1:numOutputProteins,
                   
             end
             
+            %perform further rotation of the pre-rotated boundary images to
+            % match the 'other image'
+            [ imageBasLamRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageBasLamRot), [1; 1] );
+            [ imageLayersRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageLayersRot), [1; 1] );
+            [ imageBoundOneRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageBoundOneRot), [1; 1] );
+            [ imageBoundTwoRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageBoundTwoRot), [1; 1] );
+            [ imageOuterBoundRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageOuterBoundRot), [1; 1] );
+
+            arrayBotLeftCoOrds = [arrayOtherImageCoOrds{iOutputProtein,1}(1); arrayOtherImageCoOrds{iOutputProtein,1}(4)]; % [x; y] for dist
+            arrayBotRightCoOrds = [arrayOtherImageCoOrds{iOutputProtein,1}(2); arrayOtherImageCoOrds{iOutputProtein,1}(4)];
+            
+            numBotLeftLayer = imageLayersRotForOther(arrayBotLeftCoOrds(2), arrayBotLeftCoOrds(1)); %row column for image coords
+            numBotRightLayer = imageLayersRotForOther(arrayBotRightCoOrds(2), arrayBotRightCoOrds(1));
+            
+            if numBotLeftLayer == 0,
+                imageLeftLowerBound = imageBasLamRotForOther;
+                imageLeftUpperBound = imageBoundOneRotForOther; 
+                numLeftInterpValMult = -1;
+                numLeftNormDistBase = 0;
+            elseif numBotLeftLayer == 1,
+                imageLeftLowerBound = imageBasLamRotForOther;
+                imageLeftUpperBound = imageBoundOneRotForOther;
+                numLeftInterpValMult = 1;
+                numLeftNormDistBase = 0;
+            elseif numBotLeftLayer == 2,
+                imageLeftLowerBound = imageBoundOneRotForOther;
+                imageLeftUpperBound = imageBoundTwoRotForOther;
+                numLeftInterpValMult = 1;
+                numLeftNormDistBase = 1;
+            elseif numBotLeftLayer == 3,
+                imageLeftLowerBound = imageBoundTwoRotForOther;
+                imageLeftUpperBound = imageOuterBoundRotForOther;
+                numLeftInterpValMult = 1;
+                numLeftNormDistBase = 2;
+            else
+                disp(['warning: fix this Joe']);
+            end
+            
+            if numBotRightLayer == 0,
+                imageRightLowerBound = imageBasLamRotForOther;
+                imageRightUpperBound = imageBoundOneRotForOther; 
+                numRightInterpValMult = -1;
+                numRightNormDistBase = 0;
+            elseif numBotRightLayer == 1,
+                imageRightLowerBound = imageBasLamRotForOther;
+                imageRightUpperBound = imageBoundOneRotForOther;
+                numRightInterpValMult = 1;
+                numRightNormDistBase = 0;
+            elseif numBotRightLayer == 2,
+                imageRightLowerBound = imageBoundOneRotForOther;
+                imageRightUpperBound = imageBoundTwoRotForOther;
+                numRightInterpValMult = 1;
+                numRightNormDistBase = 1;
+            elseif numBotRightLayer == 3,
+                imageRightLowerBound = imageBoundTwoRotForOther;
+                imageRightUpperBound = imageOuterBoundRotForOther;
+                numRightInterpValMult = 1;
+                numRightNormDistBase = 2;
+            else
+                disp(['warning: fix this Joe']);
+            end
+            
+            %extract the pixel co-ordinates
+            [arrayLeftLowerY, arrayLeftLowerX] = find(imageLeftLowerBound);
+            [arrayLeftUpperY, arrayLeftUpperX] = find(imageLeftUpperBound);
+            [arrayRightLowerY, arrayRightLowerX] = find(imageRightLowerBound);
+            [arrayRightUpperY, arrayRightUpperX] = find(imageRightUpperBound);
+            
+            
+            %create the output vector
+            structOtherImageOne(iOutputProtein).arrayNormDist = zeros(1,2,'double');
+
+            arrayCombinedLeftLowerPix = [ arrayBotLeftCoOrds(1) arrayLeftLowerX'; ...
+                                          arrayBotLeftCoOrds(2) arrayLeftLowerY' ];
+
+            arrayCombinedLeftUpperPix = [ arrayBotLeftCoOrds(1) arrayLeftUpperX'; ...
+                                          arrayBotLeftCoOrds(2) arrayLeftUpperY' ]; 
+                                      
+            arrayCombinedRightLowerPix = [ arrayBotRightCoOrds(1) arrayRightLowerX'; ...
+                                           arrayBotRightCoOrds(2) arrayRightLowerY' ];
+
+            arrayCombinedRightUpperPix = [ arrayBotRightCoOrds(1) arrayRightUpperX'; ...
+                                           arrayBotRightCoOrds(2) arrayRightUpperY' ]; 
+            %FINDME
+            arrayFullLeftLowerDistMatrix = dist(arrayCombinedLeftLowerPix);
+            arrayFullLeftUpperDistMatrix = dist(arrayCombinedLeftUpperPix);
+            arrayFullRightLowerDistMatrix = dist(arrayCombinedRightLowerPix);
+            arrayFullRightUpperDistMatrix = dist(arrayCombinedRightUpperPix);
+
+            %extract the section of the distance matrix which is of interest
+            arrayLeftDistToLowerBound = arrayFullLeftLowerDistMatrix(1,2:end);
+            arrayRightDistToLowerBound = arrayFullRightLowerDistMatrix(1,2:end);
+            numBotLeftLowerDist = min(arrayLeftDistToLowerBound);
+            numBotRightLowerDist = min(arrayRightDistToLowerBound);
+
+            %extract the section of the distance matrix which is of interest
+            arrayLeftDistToUpperBound = arrayFullLeftUpperDistMatrix(1,2:end);
+            arrayRightDistToUpperBound = arrayFullRightUpperDistMatrix(1,2:end);
+            numBotLeftUpperDist = min(arrayLeftDistToUpperBound);
+            numBotRightUpperDist = min(arrayRightDistToUpperBound);
+            
+            numInterpBotLeftDist = numBotLeftLowerDist/(numBotLeftLowerDist + numBotLeftUpperDist);
+            numInterpBotRightDist = numBotRightLowerDist/(numBotRightLowerDist + numBotRightUpperDist);
+            
+            numBotLeftNormDist = numInterpBotLeftDist*numLeftInterpValMult + numLeftNormDistBase;
+            numBotRightNormDist = numInterpBotRightDist*numRightInterpValMult + numRightNormDistBase;
+            
+            structOtherImageOne(iOutputProtein).arrayNormDist(1) = numBotLeftNormDist;
+            structOtherImageOne(iOutputProtein).arrayNormDist(2) = numBotRightNormDist;
+            
             %populate the faces/volumes structures using the indexed
             % sub-volume and isosurface function
             structOtherImageOne(iOutputProtein).fv1 = isosurface(imageIndexedSubVolume, 0);
@@ -758,6 +996,117 @@ for iOutputProtein = 1:numOutputProteins,
             [imageSurf,~] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageRepRot), [1; 1] );
             %convert the format back to uint8
             imageSurf = uint8(imageSurf);
+            
+            
+            %perform further rotation of the pre-rotated boundary images to
+            % match the 'other image'
+            [ imageBasLamRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageBasLamRot), [1; 1] );
+            [ imageLayersRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageLayersRot), [1; 1] );
+            [ imageBoundOneRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageBoundOneRot), [1; 1] );
+            [ imageBoundTwoRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageBoundTwoRot), [1; 1] );
+            [ imageOuterBoundRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageOuterBoundRot), [1; 1] );
+
+            arrayBotLeftCoOrds = [arrayOtherImageCoOrds{iOutputProtein,1}(1); arrayOtherImageCoOrds{iOutputProtein,1}(4)]; % [x; y] for dist
+            arrayBotRightCoOrds = [arrayOtherImageCoOrds{iOutputProtein,1}(2); arrayOtherImageCoOrds{iOutputProtein,1}(4)];
+            
+            numBotLeftLayer = imageLayersRotForOther(arrayBotLeftCoOrds(2), arrayBotLeftCoOrds(1)); %row column for image coords
+            numBotRightLayer = imageLayersRotForOther(arrayBotRightCoOrds(2), arrayBotRightCoOrds(1));
+            
+            if numBotLeftLayer == 0,
+                imageLeftLowerBound = imageBasLamRotForOther;
+                imageLeftUpperBound = imageBoundOneRotForOther; 
+                numLeftInterpValMult = -1;
+                numLeftNormDistBase = 0;
+            elseif numBotLeftLayer == 1,
+                imageLeftLowerBound = imageBasLamRotForOther;
+                imageLeftUpperBound = imageBoundOneRotForOther;
+                numLeftInterpValMult = 1;
+                numLeftNormDistBase = 0;
+            elseif numBotLeftLayer == 2,
+                imageLeftLowerBound = imageBoundOneRotForOther;
+                imageLeftUpperBound = imageBoundTwoRotForOther;
+                numLeftInterpValMult = 1;
+                numLeftNormDistBase = 1;
+            elseif numBotLeftLayer == 3,
+                imageLeftLowerBound = imageBoundTwoRotForOther;
+                imageLeftUpperBound = imageOuterBoundRotForOther;
+                numLeftInterpValMult = 1;
+                numLeftNormDistBase = 2;
+            else
+                disp(['warning: fix this Joe']);
+            end
+            
+            if numBotRightLayer == 0,
+                imageRightLowerBound = imageBasLamRotForOther;
+                imageRightUpperBound = imageBoundOneRotForOther; 
+                numRightInterpValMult = -1;
+                numRightNormDistBase = 0;
+            elseif numBotRightLayer == 1,
+                imageRightLowerBound = imageBasLamRotForOther;
+                imageRightUpperBound = imageBoundOneRotForOther;
+                numRightInterpValMult = 1;
+                numRightNormDistBase = 0;
+            elseif numBotRightLayer == 2,
+                imageRightLowerBound = imageBoundOneRotForOther;
+                imageRightUpperBound = imageBoundTwoRotForOther;
+                numRightInterpValMult = 1;
+                numRightNormDistBase = 1;
+            elseif numBotRightLayer == 3,
+                imageRightLowerBound = imageBoundTwoRotForOther;
+                imageRightUpperBound = imageOuterBoundRotForOther;
+                numRightInterpValMult = 1;
+                numRightNormDistBase = 2;
+            else
+                disp(['warning: fix this Joe']);
+            end
+            
+            %extract the pixel co-ordinates
+            [arrayLeftLowerY, arrayLeftLowerX] = find(imageLeftLowerBound);
+            [arrayLeftUpperY, arrayLeftUpperX] = find(imageLeftUpperBound);
+            [arrayRightLowerY, arrayRightLowerX] = find(imageRightLowerBound);
+            [arrayRightUpperY, arrayRightUpperX] = find(imageRightUpperBound);
+            
+            
+            %create the output vector
+            structOtherImageOne(iOutputProtein).arrayNormDist = zeros(1,2,'double');
+
+            arrayCombinedLeftLowerPix = [ arrayBotLeftCoOrds(1) arrayLeftLowerX'; ...
+                                          arrayBotLeftCoOrds(2) arrayLeftLowerY' ];
+
+            arrayCombinedLeftUpperPix = [ arrayBotLeftCoOrds(1) arrayLeftUpperX'; ...
+                                          arrayBotLeftCoOrds(2) arrayLeftUpperY' ]; 
+                                      
+            arrayCombinedRightLowerPix = [ arrayBotRightCoOrds(1) arrayRightLowerX'; ...
+                                           arrayBotRightCoOrds(2) arrayRightLowerY' ];
+
+            arrayCombinedRightUpperPix = [ arrayBotRightCoOrds(1) arrayRightUpperX'; ...
+                                           arrayBotRightCoOrds(2) arrayRightUpperY' ]; 
+            %FINDME
+            arrayFullLeftLowerDistMatrix = dist(arrayCombinedLeftLowerPix);
+            arrayFullLeftUpperDistMatrix = dist(arrayCombinedLeftUpperPix);
+            arrayFullRightLowerDistMatrix = dist(arrayCombinedRightLowerPix);
+            arrayFullRightUpperDistMatrix = dist(arrayCombinedRightUpperPix);
+
+            %extract the section of the distance matrix which is of interest
+            arrayLeftDistToLowerBound = arrayFullLeftLowerDistMatrix(1,2:end);
+            arrayRightDistToLowerBound = arrayFullRightLowerDistMatrix(1,2:end);
+            numBotLeftLowerDist = min(arrayLeftDistToLowerBound);
+            numBotRightLowerDist = min(arrayRightDistToLowerBound);
+
+            %extract the section of the distance matrix which is of interest
+            arrayLeftDistToUpperBound = arrayFullLeftUpperDistMatrix(1,2:end);
+            arrayRightDistToUpperBound = arrayFullRightUpperDistMatrix(1,2:end);
+            numBotLeftUpperDist = min(arrayLeftDistToUpperBound);
+            numBotRightUpperDist = min(arrayRightDistToUpperBound);
+            
+            numInterpBotLeftDist = numBotLeftLowerDist/(numBotLeftLowerDist + numBotLeftUpperDist);
+            numInterpBotRightDist = numBotRightLowerDist/(numBotRightLowerDist + numBotRightUpperDist);
+            
+            numBotLeftNormDist = numInterpBotLeftDist*numLeftInterpValMult + numLeftNormDistBase;
+            numBotRightNormDist = numInterpBotRightDist*numRightInterpValMult + numRightNormDistBase;
+            
+            structOtherImageOne(iOutputProtein).arrayNormDist(1) = numBotLeftNormDist;
+            structOtherImageOne(iOutputProtein).arrayNormDist(2) = numBotRightNormDist;
             
             %extract the information required for plotting into an output
             % structure
@@ -811,6 +1160,118 @@ for iOutputProtein = 1:numOutputProteins,
                 %specify their isosurface intensity
                 imageIndexedSubVolume(arrayVoxelsInGroup) = iIsoSurfGroup;
             end
+            
+            
+            %perform further rotation of the pre-rotated boundary images to
+            % match the 'other image'
+            [ imageBasLamRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageBasLamRot), [1; 1] );
+            [ imageLayersRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageLayersRot), [1; 1] );
+            [ imageBoundOneRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageBoundOneRot), [1; 1] );
+            [ imageBoundTwoRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageBoundTwoRot), [1; 1] );
+            [ imageOuterBoundRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 1), double(imageOuterBoundRot), [1; 1] );
+
+            arrayBotLeftCoOrds = [arrayOtherImageCoOrds{iOutputProtein,1}(1); arrayOtherImageCoOrds{iOutputProtein,1}(4)]; % [x; y] for dist
+            arrayBotRightCoOrds = [arrayOtherImageCoOrds{iOutputProtein,1}(2); arrayOtherImageCoOrds{iOutputProtein,1}(4)];
+            
+            numBotLeftLayer = imageLayersRotForOther(arrayBotLeftCoOrds(2), arrayBotLeftCoOrds(1)); %row column for image coords
+            numBotRightLayer = imageLayersRotForOther(arrayBotRightCoOrds(2), arrayBotRightCoOrds(1));
+            
+            if numBotLeftLayer == 0,
+                imageLeftLowerBound = imageBasLamRotForOther;
+                imageLeftUpperBound = imageBoundOneRotForOther; 
+                numLeftInterpValMult = -1;
+                numLeftNormDistBase = 0;
+            elseif numBotLeftLayer == 1,
+                imageLeftLowerBound = imageBasLamRotForOther;
+                imageLeftUpperBound = imageBoundOneRotForOther;
+                numLeftInterpValMult = 1;
+                numLeftNormDistBase = 0;
+            elseif numBotLeftLayer == 2,
+                imageLeftLowerBound = imageBoundOneRotForOther;
+                imageLeftUpperBound = imageBoundTwoRotForOther;
+                numLeftInterpValMult = 1;
+                numLeftNormDistBase = 1;
+            elseif numBotLeftLayer == 3,
+                imageLeftLowerBound = imageBoundTwoRotForOther;
+                imageLeftUpperBound = imageOuterBoundRotForOther;
+                numLeftInterpValMult = 1;
+                numLeftNormDistBase = 2;
+            else
+                disp(['warning: fix this Joe']);
+            end
+            
+            if numBotRightLayer == 0,
+                imageRightLowerBound = imageBasLamRotForOther;
+                imageRightUpperBound = imageBoundOneRotForOther; 
+                numRightInterpValMult = -1;
+                numRightNormDistBase = 0;
+            elseif numBotRightLayer == 1,
+                imageRightLowerBound = imageBasLamRotForOther;
+                imageRightUpperBound = imageBoundOneRotForOther;
+                numRightInterpValMult = 1;
+                numRightNormDistBase = 0;
+            elseif numBotRightLayer == 2,
+                imageRightLowerBound = imageBoundOneRotForOther;
+                imageRightUpperBound = imageBoundTwoRotForOther;
+                numRightInterpValMult = 1;
+                numRightNormDistBase = 1;
+            elseif numBotRightLayer == 3,
+                imageRightLowerBound = imageBoundTwoRotForOther;
+                imageRightUpperBound = imageOuterBoundRotForOther;
+                numRightInterpValMult = 1;
+                numRightNormDistBase = 2;
+            else
+                disp(['warning: fix this Joe']);
+            end
+            
+            %extract the pixel co-ordinates
+            [arrayLeftLowerY, arrayLeftLowerX] = find(imageLeftLowerBound);
+            [arrayLeftUpperY, arrayLeftUpperX] = find(imageLeftUpperBound);
+            [arrayRightLowerY, arrayRightLowerX] = find(imageRightLowerBound);
+            [arrayRightUpperY, arrayRightUpperX] = find(imageRightUpperBound);
+            
+            
+            %create the output vector
+            structOtherImageOne(iOutputProtein).arrayNormDist = zeros(1,2,'double');
+
+            arrayCombinedLeftLowerPix = [ arrayBotLeftCoOrds(1) arrayLeftLowerX'; ...
+                                          arrayBotLeftCoOrds(2) arrayLeftLowerY' ];
+
+            arrayCombinedLeftUpperPix = [ arrayBotLeftCoOrds(1) arrayLeftUpperX'; ...
+                                          arrayBotLeftCoOrds(2) arrayLeftUpperY' ]; 
+                                      
+            arrayCombinedRightLowerPix = [ arrayBotRightCoOrds(1) arrayRightLowerX'; ...
+                                           arrayBotRightCoOrds(2) arrayRightLowerY' ];
+
+            arrayCombinedRightUpperPix = [ arrayBotRightCoOrds(1) arrayRightUpperX'; ...
+                                           arrayBotRightCoOrds(2) arrayRightUpperY' ]; 
+            %FINDME
+            arrayFullLeftLowerDistMatrix = dist(arrayCombinedLeftLowerPix);
+            arrayFullLeftUpperDistMatrix = dist(arrayCombinedLeftUpperPix);
+            arrayFullRightLowerDistMatrix = dist(arrayCombinedRightLowerPix);
+            arrayFullRightUpperDistMatrix = dist(arrayCombinedRightUpperPix);
+
+            %extract the section of the distance matrix which is of interest
+            arrayLeftDistToLowerBound = arrayFullLeftLowerDistMatrix(1,2:end);
+            arrayRightDistToLowerBound = arrayFullRightLowerDistMatrix(1,2:end);
+            numBotLeftLowerDist = min(arrayLeftDistToLowerBound);
+            numBotRightLowerDist = min(arrayRightDistToLowerBound);
+
+            %extract the section of the distance matrix which is of interest
+            arrayLeftDistToUpperBound = arrayFullLeftUpperDistMatrix(1,2:end);
+            arrayRightDistToUpperBound = arrayFullRightUpperDistMatrix(1,2:end);
+            numBotLeftUpperDist = min(arrayLeftDistToUpperBound);
+            numBotRightUpperDist = min(arrayRightDistToUpperBound);
+            
+            numInterpBotLeftDist = numBotLeftLowerDist/(numBotLeftLowerDist + numBotLeftUpperDist);
+            numInterpBotRightDist = numBotRightLowerDist/(numBotRightLowerDist + numBotRightUpperDist);
+            
+            numBotLeftNormDist = numInterpBotLeftDist*numLeftInterpValMult + numLeftNormDistBase;
+            numBotRightNormDist = numInterpBotRightDist*numRightInterpValMult + numRightNormDistBase;
+            
+            structOtherImageOne(iOutputProtein).arrayNormDist(1) = numBotLeftNormDist;
+            structOtherImageOne(iOutputProtein).arrayNormDist(2) = numBotRightNormDist;
+            
             
             %populate the faces/volumes structures using the indexed
             % sub-volume and isosurface function
@@ -884,6 +1345,116 @@ for iOutputProtein = 1:numOutputProteins,
                 %specify their isosurface intensity
                 imageIndexedSubVolume(arrayVoxelsInGroup) = iIsoSurfGroup;
             end
+            
+            %perform further rotation of the pre-rotated boundary images to
+            % match the 'other image'
+            [ imageBasLamRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 2), double(imageBasLamRot), [1; 1] );
+            [ imageLayersRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 2), double(imageLayersRot), [1; 1] );
+            [ imageBoundOneRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 2), double(imageBoundOneRot), [1; 1] );
+            [ imageBoundTwoRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 2), double(imageBoundTwoRot), [1; 1] );
+            [ imageOuterBoundRotForOther, ~ ] = rotate_image( arrayOtherImageRot(iOutputProtein, 2), double(imageOuterBoundRot), [1; 1] );
+
+            arrayBotLeftCoOrds = [arrayOtherImageCoOrds{iOutputProtein,1}(1); arrayOtherImageCoOrds{iOutputProtein,1}(4)]; % [x; y] for dist
+            arrayBotRightCoOrds = [arrayOtherImageCoOrds{iOutputProtein,1}(2); arrayOtherImageCoOrds{iOutputProtein,1}(4)];
+            
+            numBotLeftLayer = imageLayersRotForOther(arrayBotLeftCoOrds(2), arrayBotLeftCoOrds(1)); %row column for image coords
+            numBotRightLayer = imageLayersRotForOther(arrayBotRightCoOrds(2), arrayBotRightCoOrds(1));
+            
+            if numBotLeftLayer == 0,
+                imageLeftLowerBound = imageBasLamRotForOther;
+                imageLeftUpperBound = imageBoundOneRotForOther; 
+                numLeftInterpValMult = -1;
+                numLeftNormDistBase = 0;
+            elseif numBotLeftLayer == 1,
+                imageLeftLowerBound = imageBasLamRotForOther;
+                imageLeftUpperBound = imageBoundOneRotForOther;
+                numLeftInterpValMult = 1;
+                numLeftNormDistBase = 0;
+            elseif numBotLeftLayer == 2,
+                imageLeftLowerBound = imageBoundOneRotForOther;
+                imageLeftUpperBound = imageBoundTwoRotForOther;
+                numLeftInterpValMult = 1;
+                numLeftNormDistBase = 1;
+            elseif numBotLeftLayer == 3,
+                imageLeftLowerBound = imageBoundTwoRotForOther;
+                imageLeftUpperBound = imageOuterBoundRotForOther;
+                numLeftInterpValMult = 1;
+                numLeftNormDistBase = 2;
+            else
+                disp(['warning: fix this Joe']);
+            end
+            
+            if numBotRightLayer == 0,
+                imageRightLowerBound = imageBasLamRotForOther;
+                imageRightUpperBound = imageBoundOneRotForOther; 
+                numRightInterpValMult = -1;
+                numRightNormDistBase = 0;
+            elseif numBotRightLayer == 1,
+                imageRightLowerBound = imageBasLamRotForOther;
+                imageRightUpperBound = imageBoundOneRotForOther;
+                numRightInterpValMult = 1;
+                numRightNormDistBase = 0;
+            elseif numBotRightLayer == 2,
+                imageRightLowerBound = imageBoundOneRotForOther;
+                imageRightUpperBound = imageBoundTwoRotForOther;
+                numRightInterpValMult = 1;
+                numRightNormDistBase = 1;
+            elseif numBotRightLayer == 3,
+                imageRightLowerBound = imageBoundTwoRotForOther;
+                imageRightUpperBound = imageOuterBoundRotForOther;
+                numRightInterpValMult = 1;
+                numRightNormDistBase = 2;
+            else
+                disp(['warning: fix this Joe']);
+            end
+            
+            %extract the pixel co-ordinates
+            [arrayLeftLowerY, arrayLeftLowerX] = find(imageLeftLowerBound);
+            [arrayLeftUpperY, arrayLeftUpperX] = find(imageLeftUpperBound);
+            [arrayRightLowerY, arrayRightLowerX] = find(imageRightLowerBound);
+            [arrayRightUpperY, arrayRightUpperX] = find(imageRightUpperBound);
+            
+            
+            %create the output vector
+            structOtherImageTwo(iOutputProtein).arrayNormDist = zeros(1,2,'double');
+
+            arrayCombinedLeftLowerPix = [ arrayBotLeftCoOrds(1) arrayLeftLowerX'; ...
+                                          arrayBotLeftCoOrds(2) arrayLeftLowerY' ];
+
+            arrayCombinedLeftUpperPix = [ arrayBotLeftCoOrds(1) arrayLeftUpperX'; ...
+                                          arrayBotLeftCoOrds(2) arrayLeftUpperY' ]; 
+                                      
+            arrayCombinedRightLowerPix = [ arrayBotRightCoOrds(1) arrayRightLowerX'; ...
+                                           arrayBotRightCoOrds(2) arrayRightLowerY' ];
+
+            arrayCombinedRightUpperPix = [ arrayBotRightCoOrds(1) arrayRightUpperX'; ...
+                                           arrayBotRightCoOrds(2) arrayRightUpperY' ]; 
+            %FINDME
+            arrayFullLeftLowerDistMatrix = dist(arrayCombinedLeftLowerPix);
+            arrayFullLeftUpperDistMatrix = dist(arrayCombinedLeftUpperPix);
+            arrayFullRightLowerDistMatrix = dist(arrayCombinedRightLowerPix);
+            arrayFullRightUpperDistMatrix = dist(arrayCombinedRightUpperPix);
+
+            %extract the section of the distance matrix which is of interest
+            arrayLeftDistToLowerBound = arrayFullLeftLowerDistMatrix(1,2:end);
+            arrayRightDistToLowerBound = arrayFullRightLowerDistMatrix(1,2:end);
+            numBotLeftLowerDist = min(arrayLeftDistToLowerBound);
+            numBotRightLowerDist = min(arrayRightDistToLowerBound);
+
+            %extract the section of the distance matrix which is of interest
+            arrayLeftDistToUpperBound = arrayFullLeftUpperDistMatrix(1,2:end);
+            arrayRightDistToUpperBound = arrayFullRightUpperDistMatrix(1,2:end);
+            numBotLeftUpperDist = min(arrayLeftDistToUpperBound);
+            numBotRightUpperDist = min(arrayRightDistToUpperBound);
+            
+            numInterpBotLeftDist = numBotLeftLowerDist/(numBotLeftLowerDist + numBotLeftUpperDist);
+            numInterpBotRightDist = numBotRightLowerDist/(numBotRightLowerDist + numBotRightUpperDist);
+            
+            numBotLeftNormDist = numInterpBotLeftDist*numLeftInterpValMult + numLeftNormDistBase;
+            numBotRightNormDist = numInterpBotRightDist*numRightInterpValMult + numRightNormDistBase;
+            
+            structOtherImageTwo(iOutputProtein).arrayNormDist(1) = numBotLeftNormDist;
+            structOtherImageTwo(iOutputProtein).arrayNormDist(2) = numBotRightNormDist;
             
             %populate the faces/volumes structures using the indexed
             % sub-volume and isosurface function
@@ -980,7 +1551,7 @@ for iOutputProtein = 1:numOutputProteins,
     
     %load the full set of tissue segmentation data
     [ CellImageStack, CellImageLayers, CellImageBasalLamina, CellImageBoundaryOne, CellImageBoundaryTwo, CellImageOuterBoundary ] = ...
-        loadImageStackAsSparse3DCellArrays( numZSampleForDNormEst, stringSpecificImageDataFolder, stringRepImageDataFolder);
+        loadImageStackAsSparse3DCellArrays( numZSampleForDNormEst, stringSpecificImageDataFolder, stringRepImageSegDataFolder);
     arrayBorderLocations = struct('SmpCent', {}, 'ZPosition', {});
     numXCoOrd1 = arrayOtherImageXCoOrd(4);
     numXCoOrd2 = arrayOtherImageXCoOrd(3);
@@ -1128,31 +1699,8 @@ for iOutputProtein = 1:numOutputProteins,
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             
-            arrayPos1CoOrds = [arrayOtherImgOneOrigXCoOrd(3) arrayOtherImgOneOrigYCoOrd(3)];
-            arrayPos2CoOrds = [arrayOtherImgOneOrigXCoOrd(4) arrayOtherImgOneOrigYCoOrd(4)];
-            numPos1MatchMinDist = 100;
-            numPos2MatchMinDist = 100;
-            numPos1Index = -1;
-            numPos2Index = -1;
-            for iSmpAnaObs = 1:length(arrayOutSampleAnalysis),
-                numXPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(1));
-                numYPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(2));
-                numPos1Dist = sqrt((arrayPos1CoOrds(1) - numXPos)^2 + (arrayPos1CoOrds(2) - numYPos)^2);
-                numPos2Dist = sqrt((arrayPos2CoOrds(1) - numXPos)^2 + (arrayPos2CoOrds(2) - numYPos)^2);
-                if numPos1Dist < numPos1MatchMinDist,
-                    numPos1MatchMinDist = numPos1Dist;
-                    numPos1Index = iSmpAnaObs;
-                end
-                if numPos2Dist < numPos2MatchMinDist,
-                    numPos2MatchMinDist = numPos2Dist;
-                    numPos2Index = iSmpAnaObs;
-                end
-            end
-            if (numPos1Index > 0) && (numPos2Index > 0),
-                set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(numPos1Index).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(numPos2Index).NormDist, '%3.2f')]}]);
-            else
-                disp('warning: fix this Joe');
-            end
+            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(1), '%3.2f')]}; {['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(2), '%3.2f')]}]);
+            
             zlabel({'Pixel';'intensity'}, 'FontSize', numSubFigLabelFontSize*0.5);
         
         %if the first 'other image' is a 3D image    
@@ -1215,32 +1763,8 @@ for iOutputProtein = 1:numOutputProteins,
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             
-            arrayPos1CoOrds = [arrayOtherImgOneOrigXCoOrd(3) arrayOtherImgOneOrigYCoOrd(3)];
-            arrayPos2CoOrds = [arrayOtherImgOneOrigXCoOrd(4) arrayOtherImgOneOrigYCoOrd(4)];
-            numPos1MatchMinDist = 100;
-            numPos2MatchMinDist = 100;
-            numPos1Index = -1;
-            numPos2Index = -1;
-            for iSmpAnaObs = 1:length(arrayOutSampleAnalysis),
-                numXPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(1));
-                numYPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(2));
-                numPos1Dist = sqrt((arrayPos1CoOrds(1) - numXPos)^2 + (arrayPos1CoOrds(2) - numYPos)^2);
-                numPos2Dist = sqrt((arrayPos2CoOrds(1) - numXPos)^2 + (arrayPos2CoOrds(2) - numYPos)^2);
-                if numPos1Dist < numPos1MatchMinDist,
-                    numPos1MatchMinDist = numPos1Dist;
-                    numPos1Index = iSmpAnaObs;
-                end
-                if numPos2Dist < numPos2MatchMinDist,
-                    numPos2MatchMinDist = numPos2Dist;
-                    numPos2Index = iSmpAnaObs;
-                end
-            end
-            if (numPos1Index > 0) && (numPos2Index > 0),
-                set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(numPos1Index).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(numPos2Index).NormDist, '%3.2f')]}]);
-            else
-                disp('warning: fix this Joe');
-            end
-            
+            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(1), '%3.2f')]}; {['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(2), '%3.2f')]}]);
+
             hold off;
         end
         
@@ -1327,31 +1851,7 @@ for iOutputProtein = 1:numOutputProteins,
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             
-            arrayPos1CoOrds = [arrayOtherImgOneOrigXCoOrd(3) arrayOtherImgOneOrigYCoOrd(3)];
-            arrayPos2CoOrds = [arrayOtherImgOneOrigXCoOrd(4) arrayOtherImgOneOrigYCoOrd(4)];
-            numPos1MatchMinDist = 100;
-            numPos2MatchMinDist = 100;
-            numPos1Index = -1;
-            numPos2Index = -1;
-            for iSmpAnaObs = 1:length(arrayOutSampleAnalysis),
-                numXPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(1));
-                numYPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(2));
-                numPos1Dist = sqrt((arrayPos1CoOrds(1) - numXPos)^2 + (arrayPos1CoOrds(2) - numYPos)^2);
-                numPos2Dist = sqrt((arrayPos2CoOrds(1) - numXPos)^2 + (arrayPos2CoOrds(2) - numYPos)^2);
-                if numPos1Dist < numPos1MatchMinDist,
-                    numPos1MatchMinDist = numPos1Dist;
-                    numPos1Index = iSmpAnaObs;
-                end
-                if numPos2Dist < numPos2MatchMinDist,
-                    numPos2MatchMinDist = numPos2Dist;
-                    numPos2Index = iSmpAnaObs;
-                end
-            end
-            if (numPos1Index > 0) && (numPos2Index > 0),
-                set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(numPos1Index).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(numPos2Index).NormDist, '%3.2f')]}]);
-            else
-                disp('warning: fix this Joe');
-            end
+            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(1), '%3.2f')]}; {['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(2), '%3.2f')]}]);
             
             zlabel({'Pixel';'intensity'}, 'FontSize', numSubFigLabelFontSize*0.5);
             
@@ -1415,14 +1915,14 @@ for iOutputProtein = 1:numOutputProteins,
             set(gca, 'DataAspectRatio', [1 1 0.6]);
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
+            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], 'XTickLabel', [{['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(1), '%3.2f')]}; {['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(2), '%3.2f')]}]);
             hold off;
             
         end
         
         %label the x-axis towards the bottom right
         numFigXLabelXPos = arrayTwoLocOtherImagePositionSingle(1) + 0.55*arrayTwoLocOtherImagePositionSingle(3);
-        numFigXLabelYPos = arrayTwoLocOtherImagePositionSingle(2) - 0.1*arrayTwoLocOtherImagePositionSingle(4);
+        numFigXLabelYPos = arrayTwoLocOtherImagePositionSingle(2) - 0.15*arrayTwoLocOtherImagePositionSingle(4);
         numFigXLabelHeight = 0.05;
         numFigXLabelWidth = 0.10;
         annotation( 'textbox', [ numFigXLabelXPos numFigXLabelYPos numFigXLabelWidth numFigXLabelHeight ], ...
@@ -1431,7 +1931,7 @@ for iOutputProtein = 1:numOutputProteins,
         
         %and label the sub-figure
         numSubFigLabelXPos = arrayTwoLocOtherImagePositionSingle(1) - 0.12*arrayTwoLocOtherImagePositionSingle(3);
-        numSubFigLabelYPos = arrayTwoLocOtherImagePositionSingle(2) + 0.8*arrayTwoLocOtherImagePositionSingle(4);
+        numSubFigLabelYPos = arrayTwoLocOtherImagePositionSingle(2) + 0.95*arrayTwoLocOtherImagePositionSingle(4);
         numFigSubLabelSize = 0.05;
         annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'C', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
 
@@ -1492,32 +1992,8 @@ for iOutputProtein = 1:numOutputProteins,
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             
-            arrayPos1CoOrds = [arrayOtherImgOneOrigXCoOrd(3) arrayOtherImgOneOrigYCoOrd(3)];
-            arrayPos2CoOrds = [arrayOtherImgOneOrigXCoOrd(4) arrayOtherImgOneOrigYCoOrd(4)];
-            numPos1MatchMinDist = 100;
-            numPos2MatchMinDist = 100;
-            numPos1Index = -1;
-            numPos2Index = -1;
-            for iSmpAnaObs = 1:length(arrayOutSampleAnalysis),
-                numXPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(1));
-                numYPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(2));
-                numPos1Dist = sqrt((arrayPos1CoOrds(1) - numXPos)^2 + (arrayPos1CoOrds(2) - numYPos)^2);
-                numPos2Dist = sqrt((arrayPos2CoOrds(1) - numXPos)^2 + (arrayPos2CoOrds(2) - numYPos)^2);
-                if numPos1Dist < numPos1MatchMinDist,
-                    numPos1MatchMinDist = numPos1Dist;
-                    numPos1Index = iSmpAnaObs;
-                end
-                if numPos2Dist < numPos2MatchMinDist,
-                    numPos2MatchMinDist = numPos2Dist;
-                    numPos2Index = iSmpAnaObs;
-                end
-            end
-            if (numPos1Index > 0) && (numPos2Index > 0),
-                set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(numPos1Index).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(numPos2Index).NormDist, '%3.2f')]}]);
-            else
-                disp('warning: fix this Joe');
-            end
-            
+            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(1), '%3.2f')]}; {['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(2), '%3.2f')]}]);
+
             zlabel({'Pixel';'intensity'}, 'FontSize', numSubFigLabelFontSize*0.5);
             
         %if the first 'other image' is a 3D image  
@@ -1580,14 +2056,14 @@ for iOutputProtein = 1:numOutputProteins,
             set(gca, 'DataAspectRatio', [1 1 0.6]);
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
+            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], 'XTickLabel', [{['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(1), '%3.2f')]}; {['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(2), '%3.2f')]}]);
             hold off;
             
         end
         
         %label the x-axis towards the bottom right
         numFigXLabelXPos = arrayTwoLocOtherImagePositionDoubleOne(1) + 0.55*arrayTwoLocOtherImagePositionDoubleOne(3);
-        numFigXLabelYPos = arrayTwoLocOtherImagePositionDoubleOne(2) - 0.1*arrayTwoLocOtherImagePositionDoubleOne(4);
+        numFigXLabelYPos = arrayTwoLocOtherImagePositionDoubleOne(2) - 0.15*arrayTwoLocOtherImagePositionDoubleOne(4);
         numFigXLabelHeight = 0.05;
         numFigXLabelWidth = 0.10;
         annotation( 'textbox', [ numFigXLabelXPos numFigXLabelYPos numFigXLabelWidth numFigXLabelHeight ], ...
@@ -1596,7 +2072,7 @@ for iOutputProtein = 1:numOutputProteins,
         
         %and label the sub-figure
         numSubFigLabelXPos = arrayTwoLocOtherImagePositionDoubleOne(1) - 0.12*arrayTwoLocOtherImagePositionDoubleOne(3);
-        numSubFigLabelYPos = arrayTwoLocOtherImagePositionDoubleOne(2) + 0.8*arrayTwoLocOtherImagePositionDoubleOne(4);
+        numSubFigLabelYPos = arrayTwoLocOtherImagePositionDoubleOne(2) + 0.95*arrayTwoLocOtherImagePositionDoubleOne(4);
         numFigSubLabelSize = 0.05;
         annotation('textbox', [ numSubFigLabelXPos numSubFigLabelYPos numFigSubLabelSize numFigSubLabelSize ], 'String', 'C', 'FontWeight', 'bold', 'FontSize', numSubFigLabelFontSize, 'FontName', 'Arial', 'LineStyle', 'none');
 
@@ -1654,31 +2130,8 @@ for iOutputProtein = 1:numOutputProteins,
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             
-            arrayPos1CoOrds = [arrayOtherImgOneOrigXCoOrd(3) arrayOtherImgOneOrigYCoOrd(3)];
-            arrayPos2CoOrds = [arrayOtherImgOneOrigXCoOrd(4) arrayOtherImgOneOrigYCoOrd(4)];
-            numPos1MatchMinDist = 100;
-            numPos2MatchMinDist = 100;
-            numPos1Index = -1;
-            numPos2Index = -1;
-            for iSmpAnaObs = 1:length(arrayOutSampleAnalysis),
-                numXPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(1));
-                numYPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(2));
-                numPos1Dist = sqrt((arrayPos1CoOrds(1) - numXPos)^2 + (arrayPos1CoOrds(2) - numYPos)^2);
-                numPos2Dist = sqrt((arrayPos2CoOrds(1) - numXPos)^2 + (arrayPos2CoOrds(2) - numYPos)^2);
-                if numPos1Dist < numPos1MatchMinDist,
-                    numPos1MatchMinDist = numPos1Dist;
-                    numPos1Index = iSmpAnaObs;
-                end
-                if numPos2Dist < numPos2MatchMinDist,
-                    numPos2MatchMinDist = numPos2Dist;
-                    numPos2Index = iSmpAnaObs;
-                end
-            end
-            if (numPos1Index > 0) && (numPos2Index > 0),
-                set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(numPos1Index).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(numPos2Index).NormDist, '%3.2f')]}]);
-            else
-                disp('warning: fix this Joe');
-            end
+            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(structOtherImageTwo(iOutputProtein).arrayNormDist(1), '%3.2f')]}; {['~' num2str(structOtherImageTwo(iOutputProtein).arrayNormDist(2), '%3.2f')]}]);
+
             
             zlabel({'Pixel';'intensity'}, 'FontSize', numSubFigLabelFontSize*0.5);
             
@@ -1741,7 +2194,7 @@ for iOutputProtein = 1:numOutputProteins,
             set(gca, 'Projection', 'Perspective');
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,2}(2)-arrayOtherImageCoOrds{iOutputProtein,2}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
+            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,2}(2)-arrayOtherImageCoOrds{iOutputProtein,2}(1)], 'XTickLabel', [{['~' num2str(structOtherImageTwo(iOutputProtein).arrayNormDist(1), '%3.2f')]}; {['~' num2str(structOtherImageTwo(iOutputProtein).arrayNormDist(2), '%3.2f')]}]);
             hold off;
             
         end
@@ -1817,32 +2270,8 @@ for iOutputProtein = 1:numOutputProteins,
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             
-            arrayPos1CoOrds = [arrayOtherImgOneOrigXCoOrd(3) arrayOtherImgOneOrigYCoOrd(3)];
-            arrayPos2CoOrds = [arrayOtherImgOneOrigXCoOrd(4) arrayOtherImgOneOrigYCoOrd(4)];
-            numPos1MatchMinDist = 100;
-            numPos2MatchMinDist = 100;
-            numPos1Index = -1;
-            numPos2Index = -1;
-            for iSmpAnaObs = 1:length(arrayOutSampleAnalysis),
-                numXPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(1));
-                numYPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(2));
-                numPos1Dist = sqrt((arrayPos1CoOrds(1) - numXPos)^2 + (arrayPos1CoOrds(2) - numYPos)^2);
-                numPos2Dist = sqrt((arrayPos2CoOrds(1) - numXPos)^2 + (arrayPos2CoOrds(2) - numYPos)^2);
-                if numPos1Dist < numPos1MatchMinDist,
-                    numPos1MatchMinDist = numPos1Dist;
-                    numPos1Index = iSmpAnaObs;
-                end
-                if numPos2Dist < numPos2MatchMinDist,
-                    numPos2MatchMinDist = numPos2Dist;
-                    numPos2Index = iSmpAnaObs;
-                end
-            end
-            if (numPos1Index > 0) && (numPos2Index > 0),
-                set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(numPos1Index).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(numPos2Index).NormDist, '%3.2f')]}]);
-            else
-                disp('warning: fix this Joe');
-            end
-            
+            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(1), '%3.2f')]}; {['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(2), '%3.2f')]}]);
+
             zlabel({'Pixel';'intensity'}, 'FontSize', numSubFigLabelFontSize*0.5);
             
         %if the first 'other image' is a 3D image
@@ -1903,14 +2332,14 @@ for iOutputProtein = 1:numOutputProteins,
             set(gca, 'Projection', 'Perspective');
             %specify axis/tick labelling
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
-            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}]);
+            set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], 'XTickLabel', [{['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(1), '%3.2f')]}; {['~' num2str(structOtherImageOne(iOutputProtein).arrayNormDist(2), '%3.2f')]}]);
             set(gca, 'DataAspectRatio', [1 1 0.6]);
             hold off;
         end
         
         %label the x-axis towards the bottom right
         numFigXLabelXPos = arrayThreeLocOtherImagePositionOne(1) + 0.55*arrayThreeLocOtherImagePositionOne(3);
-        numFigXLabelYPos = arrayThreeLocOtherImagePositionOne(2) - 0.1*arrayThreeLocOtherImagePositionOne(4);
+        numFigXLabelYPos = arrayThreeLocOtherImagePositionOne(2) - 0.15*arrayThreeLocOtherImagePositionOne(4);
         numFigXLabelHeight = 0.05;
         numFigXLabelWidth = 0.10;
         annotation( 'textbox', [ numFigXLabelXPos numFigXLabelYPos numFigXLabelWidth numFigXLabelHeight ], ...
@@ -1976,32 +2405,8 @@ for iOutputProtein = 1:numOutputProteins,
             colormap(jet);
             set(gca, 'YTick', [], 'YTickLabel', [], 'ZTick', [], 'ZTickLabel', []);
             
-            arrayPos1CoOrds = [arrayOtherImgOneOrigXCoOrd(3) arrayOtherImgOneOrigYCoOrd(3)];
-            arrayPos2CoOrds = [arrayOtherImgOneOrigXCoOrd(4) arrayOtherImgOneOrigYCoOrd(4)];
-            numPos1MatchMinDist = 100;
-            numPos2MatchMinDist = 100;
-            numPos1Index = -1;
-            numPos2Index = -1;
-            for iSmpAnaObs = 1:length(arrayOutSampleAnalysis),
-                numXPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(1));
-                numYPos = double(arrayOutSampleAnalysis(iSmpAnaObs).CoOrds(2));
-                numPos1Dist = sqrt((arrayPos1CoOrds(1) - numXPos)^2 + (arrayPos1CoOrds(2) - numYPos)^2);
-                numPos2Dist = sqrt((arrayPos2CoOrds(1) - numXPos)^2 + (arrayPos2CoOrds(2) - numYPos)^2);
-                if numPos1Dist < numPos1MatchMinDist,
-                    numPos1MatchMinDist = numPos1Dist;
-                    numPos1Index = iSmpAnaObs;
-                end
-                if numPos2Dist < numPos2MatchMinDist,
-                    numPos2MatchMinDist = numPos2Dist;
-                    numPos2Index = iSmpAnaObs;
-                end
-            end
-            if (numPos1Index > 0) && (numPos2Index > 0),
-                set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(numPos1Index).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(numPos2Index).NormDist, '%3.2f')]}]);
-            else
-                disp('warning: fix this Joe');
-            end
-            
+            set(gca, 'XTick', [arrayXRangeInterp(1) arrayXRangeInterp(end)], 'XTickLabel', [{['~' num2str(structOtherImageTwo(iOutputProtein).arrayNormDist(1), '%3.2f')]}; {['~' num2str(structOtherImageTwo(iOutputProtein).arrayNormDist(2), '%3.2f')]}]);
+
             zlabel({'Pixel';'intensity'}, 'FontSize', numSubFigLabelFontSize*0.5);
             
         %if the second 'other image' is a 3D image   
@@ -2065,7 +2470,7 @@ for iOutputProtein = 1:numOutputProteins,
             set(gca, 'YTick', [], 'YTickLabel', [], ...
                      'ZTick', [], 'ZTickLabel', []);
             set(gca, 'XTick', [0 arrayOtherImageCoOrds{iOutputProtein,1}(2)-arrayOtherImageCoOrds{iOutputProtein,1}(1)], ...
-                     'XTickLabel', [{['~' num2str(arrayOutSampleAnalysis(1).NormDist, '%3.2f')]}; {['~' num2str(arrayOutSampleAnalysis(2).NormDist, '%3.2f')]}] );
+                     'XTickLabel', [{['~' num2str(structOtherImageTwo(iOutputProtein).arrayNormDist(1), '%3.2f')]}; {['~' num2str(structOtherImageTwo(iOutputProtein).arrayNormDist(2), '%3.2f')]}]);
             hold off;
             
         end
@@ -2101,7 +2506,7 @@ for iOutputProtein = 1:numOutputProteins,
         numNode = arrayGroupedNodes(iOutputProtein,3);
 
         %load the data cloud for the representative image
-        stringRepImageMembDataFolder = [ stringRepImageDataFolder 'M' strFolderSep ];
+        stringRepImageMembDataFolder = [ stringRepImageSegDataFolder 'M' strFolderSep ];
         structRepImageSampleData = loadSampAnalysis(stringRepImageMembDataFolder, '.mat');
 
         %extract the sampled data into an array for subsequent plotting
@@ -2271,7 +2676,7 @@ for iOutputProtein = 1:numOutputProteins,
             numNode = arrayGroupedNodes(iOutputProtein,1);
 
             %load the data cloud for the representative image
-            stringRepImageCytoDataFolder = [ stringRepImageDataFolder 'C' strFolderSep ];
+            stringRepImageCytoDataFolder = [ stringRepImageSegDataFolder 'C' strFolderSep ];
             structRepImageSampleData = loadSampAnalysis(stringRepImageCytoDataFolder, '.mat');
             
             %extract the sampled data into an array for subsequent plotting
@@ -2438,7 +2843,7 @@ for iOutputProtein = 1:numOutputProteins,
                 numNode = arrayGroupedNodes(iOutputProtein,2);
 
                 %load the data cloud for the representative image
-                stringRepImageNucDataFolder = [ stringRepImageDataFolder 'N' strFolderSep ];
+                stringRepImageNucDataFolder = [ stringRepImageSegDataFolder 'N' strFolderSep ];
                 structRepImageSampleData = loadSampAnalysis(stringRepImageNucDataFolder, '.mat');
 
                 %extract the sampled data into an array for subsequent 
@@ -2613,7 +3018,7 @@ for iOutputProtein = 1:numOutputProteins,
             numNode = arrayGroupedNodes(iOutputProtein,1);
 
             %load the data cloud for the representative image
-            stringRepImageCytoDataFolder = [ stringRepImageDataFolder 'C' strFolderSep ];
+            stringRepImageCytoDataFolder = [ stringRepImageSegDataFolder 'C' strFolderSep ];
             structRepImageSampleData = loadSampAnalysis(stringRepImageCytoDataFolder, '.mat');
 
             
@@ -2788,7 +3193,7 @@ for iOutputProtein = 1:numOutputProteins,
                 numNode = arrayGroupedNodes(iOutputProtein,2);
 
                 %load the data cloud for the representative image
-                stringRepImageNucDataFolder = [ stringRepImageDataFolder 'N' strFolderSep ];
+                stringRepImageNucDataFolder = [ stringRepImageSegDataFolder 'N' strFolderSep ];
                 structRepImageSampleData = loadSampAnalysis(stringRepImageNucDataFolder, '.mat');
 
                 %extract the sampled data into an array for subsequent
